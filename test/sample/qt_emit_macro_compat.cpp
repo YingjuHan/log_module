@@ -17,7 +17,7 @@ int main()
         .action("emit_macro")
         .message("Qt emit macro compatibility check.")
         .submit();
-    CAE_LOG_INFO("Qt")
+    CAE_LOG(Info).module("Qt")
         .stage("Compatibility")
         .action("chain_macro")
         .message("Qt emit macro chain compatibility check.")

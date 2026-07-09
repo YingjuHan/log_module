@@ -14,7 +14,7 @@ void tiny_work(std::uint64_t milliseconds = 2) {
 }
 
 void emit_minimal_example() {
-    CAE_LOG_INFO("System")
+    CAE_LOG(Info).module("System")
         .message("CAE application started.")
         .submit();
 }
@@ -77,22 +77,22 @@ void emit_builder_examples(const std::string& case_id) {
 }
 
 void emit_text_macro_examples() {
-    CAE_LOG_TRACE("Mesh")
+    CAE_LOG(Trace).module("Mesh")
         .message("Visiting cell {}", 7)
         .submit();
-    CAE_LOG_DEBUG("Geometry")
+    CAE_LOG(Debug).module("Geometry")
         .message("Detected {} candidate sliver faces.", 3)
         .submit();
-    CAE_LOG_INFO("System")
+    CAE_LOG(Info).module("System")
         .message("Workflow started for case {}.", "Case_001")
         .submit();
-    CAE_LOG_WARN("PostProcess.Reader")
+    CAE_LOG(Warn).module("PostProcess.Reader")
         .message("Optional field {} is missing.", "Temperature")
         .submit();
-    CAE_LOG_ERROR("PostProcess.Output")
+    CAE_LOG(Error).module("PostProcess.Output")
         .message("Failed to open output file {}.", "result.csv")
         .submit();
-    CAE_LOG_CRITICAL("Solver")
+    CAE_LOG(Critical).module("Solver")
         .message("Result database is corrupted; solver will abort.")
         .submit();
 }
@@ -117,12 +117,16 @@ void emit_duration_examples() {
 
 void emit_scope_examples() {
     {
-        CAE_LOG_SCOPE(Info, "Mesh", "Volume mesh generation completed.");
+        CAE_LOG_SCOPE(Info)
+            .module("Mesh")
+            .message("Volume mesh generation completed.");
         tiny_work();
     }
 
     {
-        CAE_LOG_SCOPE_INFO("Geometry", "Geometry healing completed.");
+        CAE_LOG_SCOPE(Info)
+            .module("Geometry")
+            .message("{} healing completed.", "Geometry");
         tiny_work();
     }
 

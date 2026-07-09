@@ -12,26 +12,20 @@
 | 宏 | 参数 | 产生日志语义 | 推荐场景 | 不推荐场景 |
 | --- | --- | --- | --- | --- |
 | `CAE_LOG(level)` | `level` | 结构化业务事件，通常是 `point` | 需要 `module/stage/action/result/reason/metrics` 的核心业务日志 | 只想随手打一条纯文本消息 |
-| `CAE_LOG_TRACE(module)` | `module` | 链式文本事件 builder，`TRACE` 等级 | 极细粒度调试 | 生产常规业务日志 |
-| `CAE_LOG_DEBUG(module)` | `module` | 链式文本事件 builder，`DEBUG` 等级 | 开发定位、局部诊断 | 承载核心业务字段 |
-| `CAE_LOG_INFO(module)` | `module` | 链式文本事件 builder，`INFO` 等级 | 正常状态提示、简短摘要 | 需要被分析工具稳定提取的数据 |
-| `CAE_LOG_WARN(module)` | `module` | 链式文本事件 builder，`WARN` 等级 | 可恢复异常提醒 | 需要 `reason/result/metrics` 的正式告警 |
-| `CAE_LOG_ERROR(module)` | `module` | 链式文本事件 builder，`ERROR` 等级 | 当前动作失败的简短报错 | 替代结构化失败日志 |
-| `CAE_LOG_CRITICAL(module)` | `module` | 链式文本事件 builder，`CRITICAL` 等级 | 崩溃前、全局严重故障 | 普通失败或可恢复问题 |
+| `CAE_LOG(Trace).module(module)` | `module` | 链式文本事件 builder，`TRACE` 等级 | 极细粒度调试 | 生产常规业务日志 |
+| `CAE_LOG(Debug).module(module)` | `module` | 链式文本事件 builder，`DEBUG` 等级 | 开发定位、局部诊断 | 承载核心业务字段 |
+| `CAE_LOG(Info).module(module)` | `module` | 链式文本事件 builder，`INFO` 等级 | 正常状态提示、简短摘要 | 需要被分析工具稳定提取的数据 |
+| `CAE_LOG(Warn).module(module)` | `module` | 链式文本事件 builder，`WARN` 等级 | 可恢复异常提醒 | 需要 `reason/result/metrics` 的正式告警 |
+| `CAE_LOG(Error).module(module)` | `module` | 链式文本事件 builder，`ERROR` 等级 | 当前动作失败的简短报错 | 替代结构化失败日志 |
+| `CAE_LOG(Critical).module(module)` | `module` | 链式文本事件 builder，`CRITICAL` 等级 | 崩溃前、全局严重故障 | 普通失败或可恢复问题 |
 | `CAE_LOG_TRACE_DUR(module, duration_us)` | `module`, `duration_us` | 带真实耗时的链式文本事件，`TRACE` | 极细耗时调试 | 随便填一个耗时 |
 | `CAE_LOG_DEBUG_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`DEBUG` | 局部性能诊断 | 核心生命周期建模 |
 | `CAE_LOG_INFO_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`INFO` | 已有精确耗时值的正常业务事件 | 应该用 `TaskScope` 的完整任务 |
 | `CAE_LOG_WARN_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`WARN` | 可恢复异常且需要体现耗时 | 替代结构化 `WARN` 告警 |
 | `CAE_LOG_ERROR_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`ERROR` | 失败动作且已有耗时值 | 只写错误句子、不写失败原因 |
 | `CAE_LOG_CRITICAL_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`CRITICAL` | 全局致命故障且需记录耗时 | 日常异常 |
-| `CAE_LOG_SCOPE(level, module, ...)` | `level`, `module`, `fmt` 参数 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
+| `CAE_LOG_SCOPE(level)` | `level`，再通过 `.module(...).message(...)` 链式配置 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)` | `level`, `module`, `stage`, 可选 `action/trace_id` | 真实业务生命周期 `span` | 几何导入、网格生成、求解循环、导出任务 | 只是一条瞬时状态变更 |
-| `CAE_LOG_SCOPE_TRACE(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Trace, ...)` 快捷版 | TRACE 级作用域计时 | 正常业务主日志 |
-| `CAE_LOG_SCOPE_DEBUG(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Debug, ...)` 快捷版 | DEBUG 级作用域计时 | 核心结构化事件 |
-| `CAE_LOG_SCOPE_INFO(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Info, ...)` 快捷版 | INFO 级作用域计时 | 替代 `CAE_SCOPE_TASK` |
-| `CAE_LOG_SCOPE_WARN(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Warn, ...)` 快捷版 | WARN 级作用域计时 | 一般业务日志 |
-| `CAE_LOG_SCOPE_ERROR(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Error, ...)` 快捷版 | ERROR 级作用域计时 | 普通错误上报主入口 |
-| `CAE_LOG_SCOPE_CRITICAL(module, ...)` | `module`, `fmt` 参数 | `CAE_LOG_SCOPE(Critical, ...)` 快捷版 | CRITICAL 级作用域计时 | 普通故障场景 |
 
 说明：
 
@@ -79,11 +73,11 @@ CAE_LOG(Info)
 
 ### 1.1 链式字段说明
 
-`CAE_LOG(level)`、单参数等级快捷宏（例如 `CAE_LOG_INFO("Mesh")`）以及带 `duration_us` 的 `_DUR` 快捷宏（例如 `CAE_LOG_INFO_DUR("Mesh", mesh_us)`）都会返回 `LogBuilder`，因此可以继续追加以下链式方法。链式方法的顺序不影响字段写入，但推荐最后调用 `.message(...).submit()`；忘记 `.submit()` 时不会写出日志。
+`CAE_LOG(level).module(...)` 写法以及带 `duration_us` 的 `_DUR` 宏（例如 `CAE_LOG_INFO_DUR("Mesh", mesh_us)`）都会返回 `LogBuilder`，因此可以继续追加以下链式方法。链式方法的顺序不影响字段写入，但推荐最后调用 `.message(...).submit()`；忘记 `.submit()` 时不会写出日志。
 
 | 方法 | 意义 | 典型用法 |
 | --- | --- | --- |
-| `.module("Solver")` | 设置日志所属模块，最终写入 `component`。快捷宏的第一个参数已经会设置它。 | 稳定模块名，例如 `"Mesh"`、`"Solver"`、`"PostProcess.Output"`。 |
+| `.module("Solver")` | 设置日志所属模块，最终写入 `component`。 | 稳定模块名，例如 `"Mesh"`、`"Solver"`、`"PostProcess.Output"`。 |
 | `.stage("Iteration")` | 设置业务阶段，表示当前处于哪个流程段。 | `"Import"`、`"Mesh"`、`"Iteration"`、`"Output"`。 |
 | `.action("nonlinear_step")` | 设置具体动作，建议使用稳定英文标识。 | `"read_file"`、`"quality_check"`、`"nonlinear_step"`、`"export"`。 |
 | `.object("file", "result.csv")` | 设置当前动作处理的对象类别和对象名。 | `.object("mesh_zone", "inlet")`、`.object("field", "pressure")`。 |
@@ -101,7 +95,7 @@ CAE_LOG(Info)
 完整示例：
 
 ```cpp
-CAE_LOG_INFO("Solver")
+CAE_LOG(Info).module("Solver")
     .stage("Iteration")
     .action("nonlinear_step")
     .object("equation", "pressure")
@@ -115,7 +109,7 @@ CAE_LOG_INFO("Solver")
 失败日志示例：
 
 ```cpp
-CAE_LOG_ERROR("PostProcess.Output")
+CAE_LOG(Error).module("PostProcess.Output")
     .stage("Output")
     .action("export")
     .object("file", "result.csv")
@@ -125,18 +119,18 @@ CAE_LOG_ERROR("PostProcess.Output")
     .submit();
 ```
 
-## 2. `CAE_LOG_TRACE/DEBUG/INFO/WARN/ERROR/CRITICAL`
+## 2. `CAE_LOG(level).module(module)`
 
-这组宏用于写一条指定等级的纯文本瞬时日志。
+这种链式写法用于写一条指定等级的纯文本瞬时日志。
 
 包含：
 
-- `CAE_LOG_TRACE(module)`
-- `CAE_LOG_DEBUG(module)`
-- `CAE_LOG_INFO(module)`
-- `CAE_LOG_WARN(module)`
-- `CAE_LOG_ERROR(module)`
-- `CAE_LOG_CRITICAL(module)`
+- `CAE_LOG(Trace).module(module)`
+- `CAE_LOG(Debug).module(module)`
+- `CAE_LOG(Info).module(module)`
+- `CAE_LOG(Warn).module(module)`
+- `CAE_LOG(Error).module(module)`
+- `CAE_LOG(Critical).module(module)`
 
 意义：
 
@@ -152,13 +146,13 @@ CAE_LOG_ERROR("PostProcess.Output")
 示例：
 
 ```cpp
-CAE_LOG_INFO("Geometry")
+CAE_LOG(Info).module("Geometry")
     .message("Imported CAD body {} of {}", index, total)
     .submit();
-CAE_LOG_WARN("Mesh")
+CAE_LOG(Warn).module("Mesh")
     .message("High skewness detected in region {}", region_id)
     .submit();
-CAE_LOG_ERROR("PostProcess.Output")
+CAE_LOG(Error).module("PostProcess.Output")
     .message("Export failed: {}", reason)
     .submit();
 ```
@@ -219,7 +213,7 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 - 为了“看起来有耗时”而伪造 `duration_us`
 - 用它替代真实业务生命周期的 `TaskScope`
 
-## 4. `CAE_LOG_SCOPE(level, module, ...)`
+## 4. `CAE_LOG_SCOPE(level)`
 
 意义：
 
@@ -230,14 +224,16 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 参数：
 
 - `level`
-- `module`
-- `...`：消息文本
+- `.module(...)`：模块名
+- `.message(...)`：消息文本，支持 `fmt` 风格格式化参数
 
 示例：
 
 ```cpp
 void export_result() {
-    CAE_LOG_SCOPE(Info, "PostProcess.Output", "Exporting result file");
+    CAE_LOG_SCOPE(Info)
+        .module("PostProcess.Output")
+        .message("Exporting result file");
     // ...
 }
 ```
@@ -297,36 +293,32 @@ CAE_SCOPE_TASK(Info, "Solver", "Iteration", "child_stage", trace_id);
 
 - 只描述一个瞬时状态变化时使用它
 
-## 6. `CAE_LOG_SCOPE_TRACE/DEBUG/INFO/WARN/ERROR/CRITICAL`
+## 6. `CAE_LOG_SCOPE(level)` 等级写法
 
-这组宏是 `CAE_LOG_SCOPE(level, module, ...)` 的快捷写法。
+使用保留的 `CAE_LOG_SCOPE` 主入口按等级创建作用域计时。
 
 包含：
 
-- `CAE_LOG_SCOPE_TRACE(module, ...)`
-- `CAE_LOG_SCOPE_DEBUG(module, ...)`
-- `CAE_LOG_SCOPE_INFO(module, ...)`
-- `CAE_LOG_SCOPE_WARN(module, ...)`
-- `CAE_LOG_SCOPE_ERROR(module, ...)`
-- `CAE_LOG_SCOPE_CRITICAL(module, ...)`
+- `CAE_LOG_SCOPE(Trace).module(module).message(...)`
+- `CAE_LOG_SCOPE(Debug).module(module).message(...)`
+- `CAE_LOG_SCOPE(Info).module(module).message(...)`
+- `CAE_LOG_SCOPE(Warn).module(module).message(...)`
+- `CAE_LOG_SCOPE(Error).module(module).message(...)`
+- `CAE_LOG_SCOPE(Critical).module(module).message(...)`
 
 意义：
 
-- 少写一个 `level`
+- 显式写出 `level`
 - 保持作用域自动计时语义不变
 
 示例：
 
 ```cpp
 void rebuild_cache() {
-    CAE_LOG_SCOPE_INFO("System", "Rebuilding cache");
+    CAE_LOG_SCOPE(Info)
+        .module("System")
+        .message("Rebuilding cache");
 }
-```
-
-等价于：
-
-```cpp
-CAE_LOG_SCOPE(Info, "System", "Rebuilding cache");
 ```
 
 推荐场景：
@@ -344,9 +336,9 @@ CAE_LOG_SCOPE(Info, "System", "Rebuilding cache");
 
 - 要被分析工具稳定消费：`CAE_LOG(level)`
 - 要表达真实业务生命周期：`CAE_SCOPE_TASK(...)`
-- 要做局部代码块自动计时：`CAE_LOG_SCOPE_*`
+- 要做局部代码块自动计时：`CAE_LOG_SCOPE(level).module(...).message(...)`
 - 已经有真实耗时值：`CAE_LOG_*_DUR`
-- 只补一句简短文本：`CAE_LOG_INFO/WARN/ERROR...`
+- 只补一句简短文本：`CAE_LOG(level).module(...)`
 
 ## 8. 不同 CAE 业务推荐用法
 
@@ -372,9 +364,9 @@ CAE_LOG_SCOPE(Info, "System", "Rebuilding cache");
 
 ## 9. 常见误用
 
-- 用 `CAE_LOG_INFO(...)` 代替结构化 `CAE_LOG(Info)...submit()`
+- 用 `CAE_LOG(Info).module(...)` 代替结构化 `CAE_LOG(Info)...submit()`
 - 用 `CAE_LOG_*_DUR` 伪造耗时
-- 用 `CAE_LOG_SCOPE_INFO(...)` 替代真实业务任务 `span`
+- 用 `CAE_LOG_SCOPE(Info).module(...).message(...)` 替代真实业务任务 `span`
 - 在高频路径长期使用 `TRACE/DEBUG`
 - 把核心业务字段只写进 `message`
 

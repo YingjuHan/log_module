@@ -73,7 +73,7 @@ public:
         // Reader 2: Ensight case
         {
             auto t0 = std::chrono::steady_clock::now();
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Reader [Ensight] created for \"flow.ensi\"")
                 .submit();
             double elapsed = rand_elapsed();
@@ -81,7 +81,7 @@ public:
             CAE_LOG_INFO_DUR(module, duration_us_from_seconds(elapsed))
                 .message("Reader [Ensight] opened \"flow.ensi\" entities=6 elapsed={:.2f}s", elapsed)
                 .submit();
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Mesh summary: nodes=98240 cells=512000 blocks=6 fields=8 timesteps=200")
                 .submit();
         }
@@ -89,7 +89,7 @@ public:
         // Reader 3: CSV probe data (triggers a warning)
         {
             auto t0 = std::chrono::steady_clock::now();
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Reader [CSV] created for \"probe_data.csv\"")
                 .submit();
             double elapsed = rand_elapsed();
@@ -118,26 +118,26 @@ public:
         const char* module = "PostProcess.Pipeline";
         cae::TaskScope pipeline_scope(module, "Pipeline", cae::Level::Info, "pipeline", trace_id);
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Clip] created <- STEP_Reader:0")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Contour] created <- Clip:0")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Slice] created <- Contour:0")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
         // Property changes
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Clip].ClipType: \"Plane\" -> \"Sphere\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Clip].SphereRadius: \"0.5\" -> \"0.75\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Contour].ContourValues: \"5\" -> \"12\"")
             .submit();
 
@@ -175,7 +175,7 @@ public:
                 .submit();
         }
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("PostFilter: auto-convert \"PRESSURE\" from Cell to Point")
             .submit();
         CAE_LOG_INFO_DUR(module, duration_us_from_seconds(0.12))
@@ -183,14 +183,14 @@ public:
             .submit();
 
         // Add a problematic filter
-        CAE_LOG_WARN(module)
+        CAE_LOG(Warn).module(module)
             .message("Filter [WarpByVector] skipped: input has no valid normals")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
         // Cleanup
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Filter [Slice] removed (upstream=Contour downstream=none)")
             .submit();
     }
@@ -200,28 +200,28 @@ public:
         const char* module = "PostProcess.Display";
         cae::TaskScope display_scope(module, "Display", cae::Level::Info, "display", trace_id);
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Clip].Visibility: false -> true")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Clip].Type: \"Surface\" -> \"Wireframe\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Clip].ColorArrayName: \"\" -> \"PRESSURE\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Clip].Component: \"Magnitude\" -> \"X\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Clip].MapScalars: false -> true")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Contour].Visibility: false -> true")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Representation[Contour].Type: \"Surface\" -> \"SurfaceWithEdges\"")
             .submit();
         CAE_LOG(Info)
@@ -238,32 +238,32 @@ public:
     void simulate_colormap(const std::string& trace_id) {
         cae::TaskScope colormap_scope("PostProcess.ColorMap", "ColorMap", cae::Level::Info, "colormap", trace_id);
         // ColorMap
-        CAE_LOG_INFO("PostProcess.ColorMap")
+        CAE_LOG(Info).module("PostProcess.ColorMap")
             .message("LUT created for \"PRESSURE\": range=[1.013e+05,2.027e+05] preset=\"CoolToWarm\"")
             .submit();
-        CAE_LOG_INFO("PostProcess.ColorMap")
+        CAE_LOG(Info).module("PostProcess.ColorMap")
             .message("LUT created for \"VELOCITY\": range=[0.000e+00,1.500e+02] preset=\"RainbowUniform\"")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
         // TransferFunc
-        CAE_LOG_INFO("PostProcess.TransferFunc")
+        CAE_LOG(Info).module("PostProcess.TransferFunc")
             .message("Rescale LUT [PRESSURE]: [1.013e+05,2.027e+05] -> [0.000e+00,5.000e+05]")
             .submit();
-        CAE_LOG_INFO("PostProcess.TransferFunc")
+        CAE_LOG(Info).module("PostProcess.TransferFunc")
             .message("Invert LUT [PRESSURE]")
             .submit();
-        CAE_LOG_INFO("PostProcess.TransferFunc")
+        CAE_LOG(Info).module("PostProcess.TransferFunc")
             .message("LUT [PRESSURE] mapping: Linear -> Log10")
             .submit();
-        CAE_LOG_INFO("PostProcess.TransferFunc")
+        CAE_LOG(Info).module("PostProcess.TransferFunc")
             .message("Opacity [PRESSURE]: 5 control points")
             .submit();
-        CAE_LOG_INFO("PostProcess.TransferFunc")
+        CAE_LOG(Info).module("PostProcess.TransferFunc")
             .message("Rescale LUT [VELOCITY]: [0.000e+00,1.500e+02] -> [0.000e+00,2.000e+02]")
             .submit();
-        CAE_LOG_INFO("PostProcess.ColorMap")
+        CAE_LOG(Info).module("PostProcess.ColorMap")
             .message("LUT [PRESSURE] preset: \"CoolToWarm\" -> \"Jet\"")
             .submit();
         CAE_LOG(Info)
@@ -281,28 +281,28 @@ public:
         const char* module = "PostProcess.Interaction";
         cae::TaskScope interaction_scope(module, "Interaction", cae::Level::Info, "interaction", trace_id);
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("View [RenderView1] created: type=3D layout=(0,0)")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("View [RenderView2] created: type=3D layout=(1,0)")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Time step: index=5 value=0.500")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Interaction mode: \"RubberBandZoom\"")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Annotation[ScalarBar1]: text=\"PRESSURE (MPa)\" position=(0.85,0.10)")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("GridAxes[RenderView1]: visibility=true")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Time step: index=12 value=1.200")
             .submit();
         CAE_LOG(Info)
@@ -323,16 +323,16 @@ public:
         const char* module = "PostProcess.Selection";
         cae::TaskScope selection_scope(module, "Selection", cae::Level::Info, "selection", trace_id);
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Selection: mode=SurfaceCells elements=1245 type=\"Frustum\"")
             .submit();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Selection op: Combine (input=1245 elements)")
             .submit();
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("Selection op: Toggle (input=89 elements)")
             .submit();
 
@@ -351,7 +351,7 @@ public:
             .metric("matches", static_cast<std::int64_t>(456))
             .message("Find data: condition=\"PRESSURE > 1.5e5\" matches=456")
             .submit();
-        CAE_LOG_WARN(module)
+        CAE_LOG(Warn).module(module)
             .message("Selection: threshold mode exceeded maximum elements, clipped to 10000")
             .submit();
     }
@@ -363,7 +363,7 @@ public:
 
         // Screenshot
         {
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Screenshot: \"stress_plot.png\" (1920x1080@1x) format=PNG transparent=false")
                 .submit();
             double elapsed = rand_elapsed();
@@ -375,7 +375,7 @@ public:
 
         // Stereo screenshot
         {
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Stereo screenshot: left=\"stress_L.png\" right=\"stress_R.png\" mode=SideBySide")
                 .submit();
         }
@@ -411,7 +411,7 @@ public:
 
         // Animation
         {
-            CAE_LOG_INFO(module)
+            CAE_LOG(Info).module(module)
                 .message("Animation: 0.000-1.000 frames=30 fps=10 output=\"anim/\"")
                 .submit();
             for (int f = 1; f <= 5; ++f) {
@@ -433,7 +433,7 @@ public:
         const char* module = "PostProcess.Summary";
         cae::TaskScope summary_scope(module, "Summary", cae::Level::Info, "summary");
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("=== PostProcessing Task Start ===")
             .submit();
 
@@ -454,7 +454,7 @@ public:
             .message("Task summary generated.")
             .submit();
 
-        CAE_LOG_INFO(module)
+        CAE_LOG(Info).module(module)
             .message("=== PostProcessing Task End ===")
             .submit();
     }

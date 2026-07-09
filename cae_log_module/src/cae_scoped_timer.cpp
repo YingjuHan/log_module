@@ -21,27 +21,29 @@ struct ScopedTimerState
     Level                     level = Level::Info;
     detail::Clock::time_point start = detail::Clock::now();
     bool                      is_active = true;
+    bool                      has_scope_context = false;
 };
 
 //=======================================================================
 // function : ScopedTimer::ScopedTimer
 // purpose  :
 //=======================================================================
-ScopedTimer::ScopedTimer(const char* theModule, Level theLevel, std::string theMessage)
+ScopedTimer::ScopedTimer(Level theLevel)
 : myState(std::unique_ptr<ScopedTimerState>(new ScopedTimerState()))
 {
-    const std::string       aModule = theModule != nullptr && *theModule != '\0' ? theModule : "default";
-    const detail::ScopeSeed aSeed =
-        detail::push_scope_context(aModule, detail::derive_stage_from_component(aModule), "timed_scope", "");
-    myState->component = aSeed.component;
-    myState->stage = aSeed.stage;
-    myState->action = aSeed.action;
-    myState->trace_id = aSeed.trace_id;
-    myState->span_id = aSeed.span_id;
-    myState->parent_span_id = aSeed.parent_span_id;
-    myState->message = std::move(theMessage);
     myState->level = theLevel;
     myState->start = detail::Clock::now();
+}
+
+//=======================================================================
+// function : ScopedTimer::ScopedTimer
+// purpose  :
+//=======================================================================
+ScopedTimer::ScopedTimer(const char* theModule, Level theLevel, std::string theMessage)
+: ScopedTimer(theLevel)
+{
+    message(std::move(theMessage));
+    module(theModule);
 }
 
 //=======================================================================
@@ -54,12 +56,91 @@ ScopedTimer::ScopedTimer(std::string theModule, Level theLevel, std::string theM
 }
 
 //=======================================================================
+// function : ScopedTimer::module
+// purpose  :
+//=======================================================================
+ScopedTimer& ScopedTimer::module(const char* theModule)
+{
+    if (!myState || !myState->is_active)
+    {
+        return *this;
+    }
+
+    myState->component = theModule != nullptr ? theModule : "";
+    ensure_scope_context();
+    return *this;
+}
+
+//=======================================================================
+// function : ScopedTimer::module
+// purpose  :
+//=======================================================================
+ScopedTimer& ScopedTimer::module(const std::string& theModule)
+{
+    return module(theModule.c_str());
+}
+
+//=======================================================================
+// function : ScopedTimer::message
+// purpose  :
+//=======================================================================
+ScopedTimer& ScopedTimer::message(const char* theMessage)
+{
+    return message(theMessage != nullptr ? std::string(theMessage) : std::string());
+}
+
+//=======================================================================
+// function : ScopedTimer::message
+// purpose  :
+//=======================================================================
+ScopedTimer& ScopedTimer::message(std::string theMessage)
+{
+    if (myState && myState->is_active)
+    {
+        myState->message = std::move(theMessage);
+    }
+    return *this;
+}
+
+//=======================================================================
+// function : ScopedTimer::ensure_scope_context
+// purpose  :
+//=======================================================================
+void ScopedTimer::ensure_scope_context()
+{
+    if (!myState || !myState->is_active || myState->has_scope_context)
+    {
+        return;
+    }
+
+    const std::string       aModule = !myState->component.empty() ? myState->component : "default";
+    const detail::ScopeSeed aSeed =
+        detail::push_scope_context(aModule, detail::derive_stage_from_component(aModule), "timed_scope", "");
+    myState->component = aSeed.component;
+    myState->stage = aSeed.stage;
+    myState->action = aSeed.action;
+    myState->trace_id = aSeed.trace_id;
+    myState->span_id = aSeed.span_id;
+    myState->parent_span_id = aSeed.parent_span_id;
+    myState->has_scope_context = true;
+}
+
+//=======================================================================
 // function : ScopedTimer::~ScopedTimer
 // purpose  :
 //=======================================================================
 ScopedTimer::~ScopedTimer() noexcept
 {
     if (!myState || !myState->is_active)
+    {
+        return;
+    }
+
+    try
+    {
+        ensure_scope_context();
+    }
+    catch (...)
     {
         return;
     }
@@ -103,7 +184,10 @@ void ScopedTimer::cancel() noexcept
     if (myState && myState->is_active)
     {
         myState->is_active = false;
-        detail::pop_scope_context(myState->span_id);
+        if (myState->has_scope_context)
+        {
+            detail::pop_scope_context(myState->span_id);
+        }
     }
 }
 

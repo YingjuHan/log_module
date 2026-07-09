@@ -2,9 +2,12 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "cae_logger_export.h"
 #include "cae_logger_types.h"
+
+#include <spdlog/fmt/fmt.h>
 
 namespace cae
 {
@@ -21,6 +24,9 @@ class CAE_LOGGER_EXPORT ScopedTimer
 {
   public:
 
+    //! Starts a timer at the specified level and configures it through chained setters.
+    explicit ScopedTimer(Level theLevel);
+
     //! Starts a timer for the specified module and message.
     ScopedTimer(const char* theModule, Level theLevel, std::string theMessage);
 
@@ -33,10 +39,31 @@ class CAE_LOGGER_EXPORT ScopedTimer
     ScopedTimer(const ScopedTimer&) = delete;
     ScopedTimer& operator=(const ScopedTimer&) = delete;
 
+    //! Sets the module/component name for this scoped timer.
+    ScopedTimer& module(const char* theModule);
+
+    //! Sets the module/component name for this scoped timer.
+    ScopedTimer& module(const std::string& theModule);
+
+    //! Sets the human-readable message without formatting.
+    ScopedTimer& message(const char* theMessage);
+
+    //! Sets the human-readable message without formatting.
+    ScopedTimer& message(std::string theMessage);
+
+    //! Formats and stores the human-readable scoped timer message.
+    template<typename... Args>
+    ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)
+    {
+        return message(fmt::format(theFormat, std::forward<Args>(theArgs)...));
+    }
+
     //! Cancels emission and pops the scope context without writing a span.
     void cancel() noexcept;
 
   private:
+
+    void ensure_scope_context();
 
     std::unique_ptr<ScopedTimerState> myState;
 };

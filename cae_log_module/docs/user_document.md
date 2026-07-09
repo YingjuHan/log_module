@@ -53,7 +53,7 @@ int main() {
     cae::set_session("Case_001");
     cae::set_thread_name("MainThread");
 
-    CAE_LOG_INFO("System")
+    CAE_LOG(Info).module("System")
         .message("CAE application started.")
         .submit();
 
@@ -230,10 +230,9 @@ call_chain_skip=0
 | API/宏                                                       | API 必填参数                                 | 说明                                                              |
 | ----------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
 | `CAE_LOG(level)`                                            | `level`                                  | 必须是 `Trace/Debug/Info/Warn/Error/Critical` 这样的枚举标识符片段，不能传运行时变量。 |
-| `CAE_LOG_TRACE/DEBUG/INFO/WARN/ERROR/CRITICAL(module)` | `module`               | 返回链式 builder；消息通过 `.message(...).submit()` 写出。        |
+| `CAE_LOG(level).module(module)`                             | `level`、`module`                         | 返回链式 builder；消息通过 `.message(...).submit()` 写出。        |
 | `CAE_LOG_*_DUR(module, duration_us)`                   | `module`、`duration_us` | 返回带顶层 `duration_us` 的链式 builder，消息通过 `.message(...).submit()` 写出。 |
-| `CAE_LOG_SCOPE(level, module, ...)`                         | `level`、`module`、fmt format、fmt 参数       | 创建 RAII span，退出作用域时写日志。                                         |
-| `CAE_LOG_SCOPE_*`                                           | `module`、fmt format、fmt 参数               | 对 `CAE_LOG_SCOPE(level, ...)` 的等级快捷封装。                          |
+| `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；通过 `.module(...).message(...)` 链式配置，退出作用域时写日志。 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)`                 | `level`、`module`、`stage`                 | action 和 trace_id 选填。                                           |
 | `cae::TaskScope(module, stage, level, ...)`                 | `module`、`stage`                         | action 和 trace_id 选填。                                           |
 | `cae::ScopedTimer(module, level, message)`                  | `module`、`level`、`message`               | 创建简易计时 scope。                                                   |
@@ -365,7 +364,7 @@ call_chain_skip=0
 3. `CAE_LOG_*_DUR(module, duration_us)`
    用于已有真实耗时的外部计时结果。`duration_us` 会作为顶层字段写出。
 
-4. `CAE_LOG_INFO/WARN/ERROR/...`
+4. `CAE_LOG(level).module(...)`
    用于简单人工可读补充，不承载核心分析字段。
 
 5. `TRACE/DEBUG`
@@ -545,33 +544,33 @@ CAE_LOG(Info)
 完整宏列表：
 
 ```cpp
-CAE_LOG_TRACE(module)
-CAE_LOG_DEBUG(module)
-CAE_LOG_INFO(module)
-CAE_LOG_WARN(module)
-CAE_LOG_ERROR(module)
-CAE_LOG_CRITICAL(module)
+CAE_LOG(Trace).module(module)
+CAE_LOG(Debug).module(module)
+CAE_LOG(Info).module(module)
+CAE_LOG(Warn).module(module)
+CAE_LOG(Error).module(module)
+CAE_LOG(Critical).module(module)
 ```
 
 示例：
 
 ```cpp
-CAE_LOG_TRACE("Mesh")
+CAE_LOG(Trace).module("Mesh")
     .message("Visiting cell {}", cell_id)
     .submit();
-CAE_LOG_DEBUG("Geometry")
+CAE_LOG(Debug).module("Geometry")
     .message("Detected {} candidate sliver faces.", sliver_faces)
     .submit();
-CAE_LOG_INFO("System")
+CAE_LOG(Info).module("System")
     .message("Workflow started for case {}.", case_id)
     .submit();
-CAE_LOG_WARN("PostProcess.Reader")
+CAE_LOG(Warn).module("PostProcess.Reader")
     .message("Optional field {} is missing.", field_name)
     .submit();
-CAE_LOG_ERROR("PostProcess.Output")
+CAE_LOG(Error).module("PostProcess.Output")
     .message("Failed to open output file {}.", safe_basename)
     .submit();
-CAE_LOG_CRITICAL("Solver")
+CAE_LOG(Critical).module("Solver")
     .message("Result database is corrupted; solver will abort.")
     .submit();
 ```
@@ -580,7 +579,7 @@ CAE_LOG_CRITICAL("Solver")
 
 ```cpp
 std::string module = "Solver";
-CAE_LOG_INFO(module.c_str())
+CAE_LOG(Info).module(module.c_str())
     .message("Solver setup started.")
     .submit();
 ```
@@ -638,13 +637,15 @@ CAE_LOG_CRITICAL_DUR("System", shutdown_us)
 * 不支持结构化 `result/reason/metrics`。
 * 新业务不要优先使用 DUR 宏记录业务生命周期；优先使用 `CAE_SCOPE_TASK`，并用 Builder 记录结果和指标。
 
-### 8.5 `CAE_LOG_SCOPE(level, module, ...)`
+### 8.5 `CAE_LOG_SCOPE(level)`
 
 用途：在当前 C++ 作用域创建 RAII 计时器，作用域退出时自动写入 span。
 
 ```cpp
 void run_mesher() {
-    CAE_LOG_SCOPE(Info, "Mesh", "Volume mesh generation completed.");
+    CAE_LOG_SCOPE(Info)
+        .module("Mesh")
+        .message("Volume mesh generation completed.");
     generate_volume_mesh();
 }
 ```
@@ -652,12 +653,12 @@ void run_mesher() {
 支持：
 
 ```cpp
-CAE_LOG_SCOPE(Trace, module, ...)
-CAE_LOG_SCOPE(Debug, module, ...)
-CAE_LOG_SCOPE(Info, module, ...)
-CAE_LOG_SCOPE(Warn, module, ...)
-CAE_LOG_SCOPE(Error, module, ...)
-CAE_LOG_SCOPE(Critical, module, ...)
+CAE_LOG_SCOPE(Trace).module(module).message(...)
+CAE_LOG_SCOPE(Debug).module(module).message(...)
+CAE_LOG_SCOPE(Info).module(module).message(...)
+CAE_LOG_SCOPE(Warn).module(module).message(...)
+CAE_LOG_SCOPE(Error).module(module).message(...)
+CAE_LOG_SCOPE(Critical).module(module).message(...)
 ```
 
 限制：
@@ -669,28 +670,28 @@ CAE_LOG_SCOPE(Critical, module, ...)
 * 不支持 result/reason/metrics。
 * 需要结构化生命周期时，优先使用 `CAE_SCOPE_TASK` 或 `cae::TaskScope`。
 
-### 8.6 Scope 等级快捷宏
+### 8.6 `CAE_LOG_SCOPE(level)` 等级写法
 
 完整宏列表：
 
 ```cpp
-CAE_LOG_SCOPE_TRACE(module, ...)
-CAE_LOG_SCOPE_DEBUG(module, ...)
-CAE_LOG_SCOPE_INFO(module, ...)
-CAE_LOG_SCOPE_WARN(module, ...)
-CAE_LOG_SCOPE_ERROR(module, ...)
-CAE_LOG_SCOPE_CRITICAL(module, ...)
+CAE_LOG_SCOPE(Trace).module(module).message(...)
+CAE_LOG_SCOPE(Debug).module(module).message(...)
+CAE_LOG_SCOPE(Info).module(module).message(...)
+CAE_LOG_SCOPE(Warn).module(module).message(...)
+CAE_LOG_SCOPE(Error).module(module).message(...)
+CAE_LOG_SCOPE(Critical).module(module).message(...)
 ```
 
 示例：
 
 ```cpp
-CAE_LOG_SCOPE_TRACE("Solver.Kernel", "Kernel interpolation completed.");
-CAE_LOG_SCOPE_DEBUG("Mesh.Partition", "Partition exchange completed.");
-CAE_LOG_SCOPE_INFO("Geometry", "Geometry healing completed.");
-CAE_LOG_SCOPE_WARN("Mesh", "Mesh local repair completed with degraded quality.");
-CAE_LOG_SCOPE_ERROR("PostProcess.Output", "Export failed.");
-CAE_LOG_SCOPE_CRITICAL("System", "Crash recovery scope completed.");
+CAE_LOG_SCOPE(Trace).module("Solver.Kernel").message("Kernel interpolation completed.");
+CAE_LOG_SCOPE(Debug).module("Mesh.Partition").message("Partition exchange completed.");
+CAE_LOG_SCOPE(Info).module("Geometry").message("Geometry healing completed.");
+CAE_LOG_SCOPE(Warn).module("Mesh").message("Mesh local repair completed with degraded quality.");
+CAE_LOG_SCOPE(Error).module("PostProcess.Output").message("Export failed.");
+CAE_LOG_SCOPE(Critical).module("System").message("Crash recovery scope completed.");
 ```
 
 ### 8.7 `CAE_SCOPE_TASK(level, module, stage, ...)`

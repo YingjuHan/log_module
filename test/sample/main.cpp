@@ -11,26 +11,26 @@ void pause_between_events() {
 
 void simulate_geometry_stage(const char* case_id) {
     cae::TaskScope geometry_scope("Geometry", "Geometry", cae::Level::Info, "workflow");
-    CAE_LOG_INFO("Geometry")
+    CAE_LOG(Info).module("Geometry")
         .message("Geometry workflow started for case {}.", case_id)
         .submit();
 
     for (int part = 1; part <= 12; ++part) {
-        CAE_LOG_INFO("Geometry")
+        CAE_LOG(Info).module("Geometry")
             .message("Imported CAD body {:02d}/12 from STEP assembly.", part)
             .submit();
-        CAE_LOG_DEBUG("Geometry")
+        CAE_LOG(Debug).module("Geometry")
             .message("Computed bounding box for body {:02d}: diagonal={:.2f} mm.", part, 120.0 + part * 3.5)
             .submit();
-        CAE_LOG_INFO("Geometry")
+        CAE_LOG(Info).module("Geometry")
             .message("Detected feature set for body {:02d}: faces={}, edges={}.", part, 80 + part * 4, 220 + part * 9)
             .submit();
         if (part % 4 == 0) {
-            CAE_LOG_WARN("Geometry")
+            CAE_LOG(Warn).module("Geometry")
                 .message("Small sliver faces found on body {:02d}; queued for repair.", part)
                 .submit();
         } else {
-            CAE_LOG_INFO("Geometry")
+            CAE_LOG(Info).module("Geometry")
                 .message("Topology check passed for body {:02d}.", part)
                 .submit();
         }
@@ -38,13 +38,13 @@ void simulate_geometry_stage(const char* case_id) {
     }
 
     for (int repair = 1; repair <= 8; ++repair) {
-        CAE_LOG_INFO("Geometry")
+        CAE_LOG(Info).module("Geometry")
             .message("Healing operation {:02d}/08 merged tolerant edges and closed gaps.", repair)
             .submit();
         pause_between_events();
     }
 
-    CAE_LOG_INFO("Geometry")
+    CAE_LOG(Info).module("Geometry")
         .message("Named selections created: inlet, outlet, wall, symmetry, bolt_holes.")
         .submit();
     CAE_LOG(Info)
@@ -60,36 +60,36 @@ void simulate_geometry_stage(const char* case_id) {
         .metric("suppressed_faces", static_cast<std::int64_t>(9))
         .message("Geometry validation summary completed.")
         .submit();
-    CAE_LOG_INFO("Geometry")
+    CAE_LOG(Info).module("Geometry")
         .message("Geometry workflow completed for case {}.", case_id)
         .submit();
 }
 
 void simulate_mesh_stage(const char* case_id) {
     cae::TaskScope mesh_scope("Mesh", "Mesh", cae::Level::Info, "workflow");
-    CAE_LOG_INFO("Mesh")
+    CAE_LOG(Info).module("Mesh")
         .message("Mesh workflow started for case {}.", case_id)
         .submit();
 
     for (int region = 1; region <= 10; ++region) {
-        CAE_LOG_INFO("Mesh")
+        CAE_LOG(Info).module("Mesh")
             .message("Assigned sizing control to region {:02d}: target={:.2f} mm.", region, 3.0 + region * 0.15)
             .submit();
-        CAE_LOG_DEBUG("Mesh")
+        CAE_LOG(Debug).module("Mesh")
             .message("Inflation layer setup for region {:02d}: layers={}, growth={:.2f}.", region, 5 + region % 4, 1.18)
             .submit();
-        CAE_LOG_INFO("Mesh")
+        CAE_LOG(Info).module("Mesh")
             .message("Generated surface mesh for region {:02d}: triangles={}.", region, 4200 + region * 370)
             .submit();
-        CAE_LOG_INFO("Mesh")
+        CAE_LOG(Info).module("Mesh")
             .message("Generated volume mesh for region {:02d}: cells={}.", region, 18000 + region * 1250)
             .submit();
         if (region % 3 == 0) {
-            CAE_LOG_WARN("Mesh")
+            CAE_LOG(Warn).module("Mesh")
                 .message("High skewness pocket detected in region {:02d}; local remesh requested.", region)
                 .submit();
         } else {
-            CAE_LOG_INFO("Mesh")
+            CAE_LOG(Info).module("Mesh")
                 .message("Quality gate passed for region {:02d}: max_skewness={:.2f}.", region, 0.72 + region * 0.01)
                 .submit();
         }
@@ -97,11 +97,11 @@ void simulate_mesh_stage(const char* case_id) {
     }
 
     for (int pass = 1; pass <= 20; ++pass) {
-        CAE_LOG_INFO("Mesh")
+        CAE_LOG(Info).module("Mesh")
             .message("Adaptive refinement pass {:02d}/20 updated curvature and proximity cells.", pass)
             .submit();
         if (pass % 5 == 0) {
-            CAE_LOG_WARN("Mesh")
+            CAE_LOG(Warn).module("Mesh")
                 .message("Refinement pass {:02d} increased cell count above planning target.", pass)
                 .submit();
         }
@@ -109,17 +109,17 @@ void simulate_mesh_stage(const char* case_id) {
     }
 
     for (int check = 1; check <= 10; ++check) {
-        CAE_LOG_DEBUG("Mesh")
+        CAE_LOG(Debug).module("Mesh")
             .message("Mesh metric sample {:02d}: orthogonal_quality={:.3f}.", check, 0.91 - check * 0.004)
             .submit();
         pause_between_events();
     }
 
     for (int interface_id = 1; interface_id <= 16; ++interface_id) {
-        CAE_LOG_INFO("Mesh")
+        CAE_LOG(Info).module("Mesh")
             .message("Created conformal interface {:02d}/16 between adjacent mesh zones.", interface_id)
             .submit();
-        CAE_LOG_DEBUG("Mesh")
+        CAE_LOG(Debug).module("Mesh")
             .message("Interface {:02d}/16 node matching completed with tolerance {:.4f} mm.", interface_id, 0.0025)
             .submit();
         pause_between_events();
@@ -139,19 +139,19 @@ void simulate_mesh_stage(const char* case_id) {
         .metric("partitions", static_cast<std::int64_t>(8))
         .message("Mesh export summary completed.")
         .submit();
-    CAE_LOG_INFO("Mesh")
+    CAE_LOG(Info).module("Mesh")
         .message("Mesh workflow completed for case {}.", case_id)
         .submit();
 }
 
 void simulate_solver_stage(const char* case_id) {
     cae::TaskScope solver_scope("Solver", "Solver", cae::Level::Info, "workflow");
-    CAE_LOG_INFO("Solver")
+    CAE_LOG(Info).module("Solver")
         .message("Solver workflow started for case {}.", case_id)
         .submit();
 
     for (int setup = 1; setup <= 18; ++setup) {
-        CAE_LOG_INFO("Solver")
+        CAE_LOG(Info).module("Solver")
             .message("Solver setup step {:02d}/18 applied material, load, and boundary data.", setup)
             .submit();
         pause_between_events();
@@ -176,7 +176,7 @@ void simulate_solver_stage(const char* case_id) {
                 .message("Nonlinear iteration {:03d}/240 completed.", iteration)
                 .submit();
             if (iteration % 40 == 0) {
-                CAE_LOG_WARN("Solver")
+                CAE_LOG(Warn).module("Solver")
                     .message("Residual plateau near iteration {:03d}; under-relaxation adjusted.", iteration)
                     .submit();
             }
@@ -185,14 +185,14 @@ void simulate_solver_stage(const char* case_id) {
     }
 
     for (int partition = 1; partition <= 18; ++partition) {
-        CAE_LOG_DEBUG("Solver")
+        CAE_LOG(Debug).module("Solver")
             .message("Partition {:02d}/18 exchanged interface flux and halo cells.", partition)
             .submit();
         pause_between_events();
     }
 
     for (int checkpoint = 1; checkpoint <= 18; ++checkpoint) {
-        CAE_LOG_INFO("Solver")
+        CAE_LOG(Info).module("Solver")
             .message("Checkpoint {:02d}/18 written: displacement, stress, and convergence fields.", checkpoint)
             .submit();
         pause_between_events();
@@ -201,19 +201,19 @@ void simulate_solver_stage(const char* case_id) {
 
 void simulate_postprocess_stage(const char* case_id) {
     cae::TaskScope postprocess_scope("PostProcess", "PostProcess", cae::Level::Info, "workflow");
-    CAE_LOG_INFO("PostProcess")
+    CAE_LOG(Info).module("PostProcess")
         .message("Post-processing workflow started for case {}.", case_id)
         .submit();
 
     for (int field = 1; field <= 12; ++field) {
-        CAE_LOG_INFO("PostProcess")
+        CAE_LOG(Info).module("PostProcess")
             .message("Loaded result field {:02d}/12: scalar/vector dataset ready.", field)
             .submit();
-        CAE_LOG_DEBUG("PostProcess")
+        CAE_LOG(Debug).module("PostProcess")
             .message("Computed min/max envelope for result field {:02d}.", field)
             .submit();
         if (field % 6 == 0) {
-            CAE_LOG_WARN("PostProcess")
+            CAE_LOG(Warn).module("PostProcess")
                 .message("Result field {:02d} contains localized hot spot above review threshold.", field)
                 .submit();
         }
@@ -221,28 +221,28 @@ void simulate_postprocess_stage(const char* case_id) {
     }
 
     for (int plot = 1; plot <= 18; ++plot) {
-        CAE_LOG_INFO("PostProcess")
+        CAE_LOG(Info).module("PostProcess")
             .message("Generated contour plot {:02d}/18 for stress, strain, velocity, or pressure.", plot)
             .submit();
         pause_between_events();
     }
 
     for (int probe = 1; probe <= 12; ++probe) {
-        CAE_LOG_INFO("PostProcess")
+        CAE_LOG(Info).module("PostProcess")
             .message("Extracted probe curve {:02d}/12 along named path.", probe)
             .submit();
         pause_between_events();
     }
 
     for (int export_id = 1; export_id <= 4; ++export_id) {
-        CAE_LOG_INFO("PostProcess")
+        CAE_LOG(Info).module("PostProcess")
             .message("Exported deliverable {:02d}/04: report table, image, VTK, or CSV.", export_id)
             .submit();
         pause_between_events();
     }
 
     for (int review = 1; review <= 7; ++review) {
-        CAE_LOG_INFO("PostProcess")
+        CAE_LOG(Info).module("PostProcess")
             .message("Design review metric {:02d}/07 added to final CAE evidence package.", review)
             .submit();
         pause_between_events();
@@ -260,7 +260,7 @@ void simulate_postprocess_stage(const char* case_id) {
         .metric("safety_factor", 1.72)
         .message("Engineering summary completed.")
         .submit();
-    CAE_LOG_INFO("PostProcess")
+    CAE_LOG(Info).module("PostProcess")
         .message("Post-processing workflow completed for case {}.", case_id)
         .submit();
 }
@@ -279,7 +279,7 @@ int main(int argc, char* argv[]) {
     {
         cae::TaskScope workflow_scope("System", "Workflow", cae::Level::Info, "full_pipeline");
 
-        CAE_LOG_INFO("System")
+        CAE_LOG(Info).module("System")
             .message("CAE application instance [{}] started.", proc_id)
             .submit();
 
@@ -288,7 +288,7 @@ int main(int argc, char* argv[]) {
         simulate_solver_stage(case_id.c_str());
         simulate_postprocess_stage(case_id.c_str());
 
-        CAE_LOG_INFO("System")
+        CAE_LOG(Info).module("System")
             .message("CAE application instance [{}] completed full geometry-mesh-solve-post workflow.", proc_id)
             .submit();
     }

@@ -131,19 +131,6 @@ CAE_LOGGER_EXPORT void shutdown();
 //! Creates a `cae::LogBuilder` for a structured event at the named level.
 #define CAE_LOG(level) cae::make_log_builder(cae::Level::level)
 
-//! Creates a TRACE text-event builder for the specified module.
-#define CAE_LOG_TRACE(theModule)    cae::make_log_builder(cae::Level::Trace).module(theModule)
-//! Creates a DEBUG text-event builder for the specified module.
-#define CAE_LOG_DEBUG(theModule)    cae::make_log_builder(cae::Level::Debug).module(theModule)
-//! Creates an INFO text-event builder for the specified module.
-#define CAE_LOG_INFO(theModule)     cae::make_log_builder(cae::Level::Info).module(theModule)
-//! Creates a WARN text-event builder for the specified module.
-#define CAE_LOG_WARN(theModule)     cae::make_log_builder(cae::Level::Warn).module(theModule)
-//! Creates an ERROR text-event builder for the specified module.
-#define CAE_LOG_ERROR(theModule)    cae::make_log_builder(cae::Level::Error).module(theModule)
-//! Creates a CRITICAL text-event builder for the specified module.
-#define CAE_LOG_CRITICAL(theModule) cae::make_log_builder(cae::Level::Critical).module(theModule)
-
 //! Creates a TRACE builder with an explicit duration in microseconds.
 #define CAE_LOG_TRACE_DUR(theModule, theDurationUs) \
     cae::make_log_builder(cae::Level::Trace).module(theModule).duration_us(static_cast<std::uint64_t>(theDurationUs))
@@ -166,25 +153,12 @@ CAE_LOGGER_EXPORT void shutdown();
 #define CAE_LOG_DETAIL_CONCAT_INNER(lhs, rhs) lhs##rhs
 #define CAE_LOG_DETAIL_CONCAT(lhs, rhs)       CAE_LOG_DETAIL_CONCAT_INNER(lhs, rhs)
 
-//! Creates a scoped timer that emits a span when the current C++ scope exits.
-#define CAE_LOG_SCOPE(level, module, ...)                  \
-    cae::ScopedTimer CAE_LOG_DETAIL_CONCAT(cae_log_scope_, \
-                                           __LINE__)(module, cae::Level::level, fmt::format(__VA_ARGS__))
+//! Creates a scoped timer and exposes it for chained configuration.
+#define CAE_LOG_SCOPE(level)                                                              \
+    cae::ScopedTimer CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)(cae::Level::level); \
+    CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)
 //! Creates a workflow task scope that emits a structured span on destruction.
 #define CAE_SCOPE_TASK(level, module, stage, ...) \
     cae::TaskScope CAE_LOG_DETAIL_CONCAT(cae_task_scope_, __LINE__)(module, stage, cae::Level::level, ##__VA_ARGS__)
-
-//! TRACE shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_TRACE(module, ...)    CAE_LOG_SCOPE(Trace, module, __VA_ARGS__)
-//! DEBUG shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_DEBUG(module, ...)    CAE_LOG_SCOPE(Debug, module, __VA_ARGS__)
-//! INFO shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_INFO(module, ...)     CAE_LOG_SCOPE(Info, module, __VA_ARGS__)
-//! WARN shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_WARN(module, ...)     CAE_LOG_SCOPE(Warn, module, __VA_ARGS__)
-//! ERROR shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_ERROR(module, ...)    CAE_LOG_SCOPE(Error, module, __VA_ARGS__)
-//! CRITICAL shortcut for `CAE_LOG_SCOPE`.
-#define CAE_LOG_SCOPE_CRITICAL(module, ...) CAE_LOG_SCOPE(Critical, module, __VA_ARGS__)
 
 //! \}

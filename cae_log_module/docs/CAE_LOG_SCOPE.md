@@ -7,12 +7,13 @@
 在 `src/cae_logger.h` 中，`CAE_LOG_SCOPE` 宏被定义为：
 
 ```cpp
-#define CAE_LOG_SCOPE(level, module, ...) \
-    cae::ScopedTimer CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)(module, cae::Level::level, fmt::format(__VA_ARGS__))
+#define CAE_LOG_SCOPE(level) \
+    cae::ScopedTimer CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)(cae::Level::level); \
+    CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)
 
 ```
 
-* **原理**：该宏会在当前作用域内创建一个 `cae::ScopedTimer` 局部对象。
+* **原理**：该宏会在当前作用域内创建一个 `cae::ScopedTimer` 局部对象，并把该对象返回给后续 `.module(...).message(...)` 链式配置。
 * **唯一命名**：使用 `__LINE__` 确保在同一作用域内如果有多个计时器，变量名是唯一的，避免冲突。
 
 ### 2. 构造函数 (记录起点)
@@ -20,19 +21,24 @@
 当执行流进入作用域时，`ScopedTimer` 的构造函数会被调用：
 
 ```cpp
-ScopedTimer::ScopedTimer(const char* module, Level level, std::string message)
+ScopedTimer::ScopedTimer(Level level)
     : state_(std::make_unique<ScopedTimerState>()) {
-    // 1. 推入 Context 栈，记录 trace_id, span_id 等上下文信息
-    const ScopeSeed seed = push_scope_context(...);
-    
-    // 2. 记录当前系统时间作为起点
+    // 1. 记录当前系统时间作为起点
     state_->start = Clock::now(); 
-    // ... 保存其他状态 ...
+    state_->level = level;
 }
 
 ```
 
-* **上下文管理**：`push_scope_context` 会将当前的模块、阶段和新生成的 `span_id` 压入线程本地的 `t_context_stack`，确保计时器能够关联到正确的异步任务链中。
+随后调用链式配置：
+
+```cpp
+CAE_LOG_SCOPE(Info)
+    .module("Mesh")
+    .message("Volume mesh generation completed.");
+```
+
+* **上下文管理**：`.module(...)` 会将当前的模块、阶段和新生成的 `span_id` 压入线程本地的 `t_context_stack`，确保计时器能够关联到正确的异步任务链中。若调用方没有显式设置模块，析构时会使用默认模块补齐上下文。
 
 ### 3. 析构函数 (计算并提交耗时)
 

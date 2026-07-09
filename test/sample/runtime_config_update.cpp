@@ -121,7 +121,7 @@ void test_load_options_then_modify_before_init(const std::string& base_dir) {
     require_true(snapshot.min_level == cae::Level::Debug, "get_options should expose updated min_level");
     require_true(snapshot.log_dir == modified_dir, "get_options should expose updated log_dir");
 
-    CAE_LOG_DEBUG("LoadOptions")
+    CAE_LOG(Debug).module("LoadOptions")
         .message("load_options_modified_debug_visible")
         .submit();
     cae::shutdown();
@@ -142,10 +142,10 @@ void test_update_options_reconfigures_level_and_log_dir(const std::string& base_
 
     cae::init(make_base_options(dir_a, cae::Level::Warn));
 
-    CAE_LOG_DEBUG("RuntimeUpdate")
+    CAE_LOG(Debug).module("RuntimeUpdate")
         .message("runtime_debug_filtered_before_update")
         .submit();
-    CAE_LOG_ERROR("RuntimeUpdate")
+    CAE_LOG(Error).module("RuntimeUpdate")
         .message("runtime_error_visible_before_update")
         .submit();
 
@@ -159,10 +159,10 @@ void test_update_options_reconfigures_level_and_log_dir(const std::string& base_
     require_true(updated.min_level == cae::Level::Debug, "updated snapshot should reflect debug level");
     require_true(updated.log_dir == dir_b, "updated snapshot should reflect new log directory");
 
-    CAE_LOG_DEBUG("RuntimeUpdate")
+    CAE_LOG(Debug).module("RuntimeUpdate")
         .message("runtime_debug_visible_after_update")
         .submit();
-    CAE_LOG_INFO("RuntimeUpdate")
+    CAE_LOG(Info).module("RuntimeUpdate")
         .message("runtime_info_visible_after_update")
         .submit();
     cae::shutdown();
@@ -189,10 +189,10 @@ void test_config_path_reload_applies_full_options(const std::string& base_dir) {
     write_config(config_path, cae::Level::Warn, dir_a);
     cae::init(config_path);
 
-    CAE_LOG_DEBUG("ConfigReload")
+    CAE_LOG(Debug).module("ConfigReload")
         .message("config_reload_debug_filtered_before")
         .submit();
-    CAE_LOG_ERROR("ConfigReload")
+    CAE_LOG(Error).module("ConfigReload")
         .message("config_reload_error_visible_before")
         .submit();
 
@@ -200,7 +200,7 @@ void test_config_path_reload_applies_full_options(const std::string& base_dir) {
     write_config(config_path, cae::Level::Debug, dir_b);
     sleep_milliseconds(1200);
 
-    CAE_LOG_DEBUG("ConfigReload")
+    CAE_LOG(Debug).module("ConfigReload")
         .message("config_reload_debug_visible_after")
         .submit();
     cae::shutdown();

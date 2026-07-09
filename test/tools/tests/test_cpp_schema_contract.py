@@ -63,6 +63,37 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertNotIn("CAE_LOG_DETAIL_LOG_DISPATCH", umbrella)
         self.assertNotIn("CAE_LOG_DETAIL_DUR_DISPATCH", umbrella)
 
+    def test_public_logger_header_keeps_chain_macros_without_level_shortcuts(self) -> None:
+        umbrella = (MODULE_ROOT / "src" / "cae_logger.h").read_text(encoding="utf-8")
+
+        removed_macros = [
+            "CAE_LOG_TRACE",
+            "CAE_LOG_DEBUG",
+            "CAE_LOG_INFO",
+            "CAE_LOG_WARN",
+            "CAE_LOG_ERROR",
+            "CAE_LOG_CRITICAL",
+            "CAE_LOG_SCOPE_TRACE",
+            "CAE_LOG_SCOPE_DEBUG",
+            "CAE_LOG_SCOPE_INFO",
+            "CAE_LOG_SCOPE_WARN",
+            "CAE_LOG_SCOPE_ERROR",
+            "CAE_LOG_SCOPE_CRITICAL",
+        ]
+
+        self.assertIn("#define CAE_LOG(level)", umbrella)
+        self.assertIn("#define CAE_LOG_SCOPE(level)", umbrella)
+        self.assertNotIn("#define CAE_LOG_SCOPE(level, module, ...)", umbrella)
+        for macro_name in removed_macros:
+            self.assertNotRegex(umbrella, rf"#define\s+{macro_name}\s*\(")
+
+    def test_scoped_timer_exposes_chain_configuration_api(self) -> None:
+        scoped_timer = (MODULE_ROOT / "src" / "cae_scoped_timer.h").read_text(encoding="utf-8")
+
+        self.assertIn("explicit ScopedTimer(Level theLevel);", scoped_timer)
+        self.assertIn("ScopedTimer& module(const char* theModule);", scoped_timer)
+        self.assertIn("ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)", scoped_timer)
+
     def test_schema_header_is_installed_by_cmake(self) -> None:
         schema_header = MODULE_ROOT / "src" / "cae_event_schema.h"
         cmake = (MODULE_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
