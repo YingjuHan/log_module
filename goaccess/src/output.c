@@ -1,0 +1,1078 @@
+/**
+ * output.c -- output to the standard output stream
+ *    ______      ___
+ *   / ____/___  /   | _____________  __________
+ *  / / __/ __ \/ /| |/ ___/ ___/ _ \/ ___/ ___/
+ * / /_/ / /_/ / ___ / /__/ /__/  __(__  |__  )
+ * \____/\____/_/  |_\___/\___/\___/____/____/
+ *
+ * The MIT License (MIT)
+ * Copyright (c) 2009-2026 Gerardo Orellana <hello @ goaccess.io>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
+#define _FILE_OFFSET_BITS 64
+
+#include <errno.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libgen.h>
+
+#include "output.h"
+
+#include "error.h"
+#include "json.h"
+#include "settings.h"
+#include "ui.h"
+#include "util.h"
+#include "wsauth.h"
+#include "xmalloc.h"
+
+#include "tpls.h"
+#include "bootstrapcss.h"
+#include "facss.h"
+#include "appcss.h"
+#include "d3js.h"
+#include "topojsonjs.h"
+#include "hoganjs.h"
+#include "countries110m.h"
+#include "cities10m.h"
+#include "chartsjs.h"
+#include "appjs.h"
+
+static void cae_count_plot (FILE * fp, GHTMLPlot plot, int sp);
+static void cae_avgts_plot (FILE * fp, GHTMLPlot plot, int sp);
+
+static void print_metrics (FILE * fp, const GHTML * def, int sp);
+static void print_host_metrics (FILE * fp, const GHTML * def, int sp);
+
+/* *INDENT-OFF* */
+static const GHTML htmldef[] = {
+  {CAE_EVENTS, 1, 0, print_metrics, {
+    {CHART_VBAR, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_VBAR, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+  {CAE_MODULE_DIST, 1, 0, print_metrics, {
+    {CHART_VBAR, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_VBAR, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+  {CAE_SEVERITY, 1, 0, print_metrics, {
+    {CHART_VBAR, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_VBAR, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+  {CAE_DURATION, 1, 0, print_metrics, {
+    {CHART_VBAR, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_VBAR, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+  {CAE_SESSION, 1, 0, print_metrics, {
+    {CHART_AREASPLINE, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_AREASPLINE, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+  {CAE_TIMELINE, 1, 0, print_metrics, {
+    {CHART_AREASPLINE, cae_count_plot, 0, 0, NULL, NULL},
+    {CHART_AREASPLINE, cae_avgts_plot, 0, 0, NULL, NULL},
+  }},
+};
+/* *INDENT-ON* */
+
+/* number of new lines (applicable fields) */
+static int nlines = 0;
+static int external_assets = 0;
+
+/* Get the chart type for the JSON definition.
+ *
+ * On success, the chart type string is returned. */
+static const char *
+chart2str (GChartType type) {
+  static const char *strings[] = { "null", "bar", "area-spline", "wmap", "gmap" };
+  return strings[type];
+}
+
+/* Get panel output data for the given module.
+ *
+ * If not found, NULL is returned.
+ * On success, panel data is returned . */
+static const GHTML *
+panel_lookup (GModule module) {
+  int i, num_panels = ARRAY_SIZE (htmldef);
+
+  for (i = 0; i < num_panels; i++) {
+    if (htmldef[i].module == module)
+      return &htmldef[i];
+  }
+  return NULL;
+}
+
+/* Sanitize output with html entities for special chars */
+static void
+clean_output (FILE *fp, const char *s) {
+  if (!s) {
+    LOG_DEBUG (("NULL data on clean_output.\n"));
+    return;
+  }
+
+  while (*s) {
+    switch (*s) {
+    case '\'':
+      fprintf (fp, "&#39;");
+      break;
+    case '"':
+      fprintf (fp, "&#34;");
+      break;
+    case '&':
+      fprintf (fp, "&amp;");
+      break;
+    case '<':
+      fprintf (fp, "&lt;");
+      break;
+    case '>':
+      fprintf (fp, "&gt;");
+      break;
+    case ' ':
+      fprintf (fp, "&nbsp;");
+      break;
+    default:
+      fputc (*s, fp);
+      break;
+    }
+    s++;
+  }
+}
+
+/* Set the HTML document title and the generated date/time */
+static void
+print_html_title (FILE *fp) {
+  const char *title = conf.html_report_title ? conf.html_report_title : HTML_REPORT_TITLE;
+
+  fprintf (fp, "<title>");
+  clean_output (fp, title);
+  fprintf (fp, "</title>");
+}
+
+static void
+print_html_header_styles (FILE *fp, FILE *fcs) {
+  if (fcs) {
+    fprintf (fp, "<link rel='stylesheet' href='%s'>", FILENAME_CSS);
+    fprintf (fcs, "%.*s\n", fa_css_length, fa_css);
+    fprintf (fcs, "%.*s\n", bootstrap_css_length, bootstrap_css);
+    fprintf (fcs, "%.*s\n", app_css_length, app_css);
+  } else {
+    fprintf (fp, "<style>%.*s</style>", fa_css_length, fa_css);
+    fprintf (fp, "<style>%.*s</style>", bootstrap_css_length, bootstrap_css);
+    fprintf (fp, "<style>%.*s</style>", app_css_length, app_css);
+  }
+}
+
+/* *INDENT-OFF* */
+/* Output all the document head elements. */
+static void
+print_html_header (FILE * fp, FILE *fcs)
+{
+  fprintf (fp,
+  "<!DOCTYPE html>"
+  "<html lang='%s'>"
+  "<head>"
+  "<meta charset='UTF-8'>"
+  "<meta name='theme-color' content='#1e1e2f'>"
+  "<meta name='referrer' content='no-referrer'>"
+  "<meta http-equiv='X-UA-Compatible' content='IE=edge'>"
+  "<meta name='google' content='notranslate'>"
+  "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+  "<meta name='robots' content='noindex, nofollow'>", _(DOC_LANG));
+
+  /* Output base64 encoded goaccess favicon.ico*/
+  fprintf (fp, "<link rel='icon' href='data:image/x-icon;base64,AAABAAEA"
+  "EBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAA"
+  "AAAAADGxsYAWFhYABwcHABfAP8A/9dfAADXrwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  "AAAAAAAAAAAAAAAAAAAAAAIiIiIiIiIiIjMlUkQgAiIiIiIiIiIiIiIzJVJEIAAAIiIiI"
+  "iIiIiIiMyVSRCAAIiIiIiIiIiIiIRERERERERERERERERERERIiIiIiIiIiIgACVVUiIi"
+  "IiIiIiIiIiIiIAAlVVIiIiIiIiIiIiIiIhEREREREREREREREREREREAAAAAAAAAAAAAA"
+  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  "AA' type='image/x-icon' />");
+
+  /* Output base64-encoded goaccess apple-touch-icon png */
+  fprintf (fp, "<link rel='apple-touch-icon' href='data:image/png;base64,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'/>");
+
+  print_html_title (fp);
+
+  print_html_header_styles(fp, fcs);
+
+  /* load custom CSS file, if any */
+  if (conf.html_custom_css)
+    fprintf (fp, "<link rel='stylesheet' href='%s'>", conf.html_custom_css);
+
+  fprintf (fp,
+  "</head>"
+  "<body>");
+}
+
+/* Output all structural elements of the HTML document. */
+static void
+print_html_body (FILE * fp, const char *now)
+{
+  fprintf (fp,
+  "<nav class='hidden-xs hidden-sm hide' aria-label='Main navigation'>"
+  "</nav>"
+  "<div class='loading-container'>"
+  "<i class='spinner fa fa-circle-o-notch fa-spin fa-3x fa-fw' aria-hidden='true' aria-label='Loading'></i>"
+  "<div class='app-loading-status'><small class='muted'></small></div>"
+  "</div>"
+  "<div class='container hide' role='document'>"
+  "<header class='page-header'>"
+  "<h1 class='h-dashboard'>"
+  "<span class='hidden-xs hidden-sm'>"
+  "<i class='fa fa-tachometer' aria-hidden='true'></i> %s"
+  "</span>"
+  "<span class='visible-xs visible-sm'>"
+  "<i class='fa fa-bars nav-minibars' aria-label='Menu' role='button' tabindex='0'></i>"
+  "<i class='fa fa-circle nav-ws-status mini' aria-label='Status indicator'></i>"
+  "</span>"
+  "</h1>"
+  "<div style='margin-left: auto;'>"
+  "<h4>"
+  "<span class='label label-info' style='display:%s' id='last-updated' aria-live='polite' aria-atomic='true'>"
+  "<span class='hidden-xs'>%s: </span>"
+  "<span class='last-updated'>%s</span>"
+  "</span>"
+  "</h4>"
+  "</div>", T_DASH, conf.no_html_last_updated ? "none" : "block", INFO_LAST_UPDATED, now);
+  fprintf (fp,
+  "<p class='report-title' id='report-title'>%s</p>"
+  "</header>"
+  "<aside id='overall' aria-labelledby='overall-heading'></aside>"
+  "<main id='panels' aria-labelledby='report-title'></main>"
+  "</div>", conf.html_report_title ? conf.html_report_title : "");
+  fprintf (fp, "%.*s", tpls_length, tpls);
+}
+
+/* Output all the document footer elements such as script and closing
+ * tags. */
+static void
+print_html_footer (FILE * fp, FILE *fjs)
+{
+  if (fjs) {
+    fprintf (fp, "<script src='%s'></script>", FILENAME_JS);
+    fprintf (fjs, "%.*s", d3_js_length, d3_js);
+    fprintf (fjs, "%.*s", hogan_js_length, hogan_js);
+    fprintf (fjs, "%.*s", app_js_length, app_js);
+    fprintf (fjs, "%.*s", charts_js_length, charts_js);
+    fprintf (fjs, "%.*s", topojson_js_length, topojson_js);
+  } else {
+    fprintf (fp, "<script>%.*s</script>", d3_js_length, d3_js);
+    fprintf (fp, "<script>%.*s</script>", hogan_js_length, hogan_js);
+    fprintf (fp, "<script>%.*s</script>", app_js_length, app_js);
+    fprintf (fp, "<script>%.*s</script>", charts_js_length, charts_js);
+    fprintf (fp, "<script>%.*s</script>", topojson_js_length, topojson_js);
+  }
+
+  /* load custom JS file, if any */
+  if (conf.html_custom_js)
+    fprintf (fp, "<script src='%s'></script>", conf.html_custom_js);
+
+  fprintf (fp, "</body>");
+  fprintf (fp, "</html>");
+}
+/* *INDENT-ON* */
+
+static const GChartDef ChartDefStopper = { NULL, NULL };
+
+/* Get the number of chart definitions per panel.
+ *
+ * The number of chart definitions is returned . */
+static int
+get_chartdef_cnt (GChart *chart) {
+  GChartDef *def = chart->def;
+
+  while (memcmp (def, &ChartDefStopper, sizeof ChartDefStopper))
+    ++def;
+
+  return def - chart->def;
+}
+
+/* Output the given JSON chart axis definition for the given panel. */
+static void
+print_d3_chart_def_axis (FILE *fp, GChart *chart, size_t cnt, int isp) {
+  GChartDef *def = chart->def;
+  size_t j = 0;
+
+  for (j = 0; j < cnt; ++j) {
+    if (strchr (def[j].value, '[') != NULL)
+      fpskeyaval (fp, def[j].key, def[j].value, isp, j == cnt - 1);
+    else
+      fpskeysval (fp, def[j].key, def[j].value, isp, j == cnt - 1);
+  }
+}
+
+/* Output the given JSON chart definition for the given panel. */
+static void
+print_d3_chart_def (FILE *fp, GChart *chart, size_t n, int sp) {
+  size_t i = 0, cnt = 0;
+  int isp = 0;
+
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  for (i = 0; i < n; ++i) {
+    cnt = get_chartdef_cnt (chart + i);
+
+    fpopen_obj_attr (fp, chart[i].key, sp);
+    print_d3_chart_def_axis (fp, chart + i, cnt, isp);
+    fpclose_obj (fp, sp, (i == n - 1));
+  }
+}
+
+static void
+print_plot_def (FILE *fp, const GHTMLPlot plot, GChart *chart, int n, int sp) {
+  int isp = 0, iisp = 0;
+
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1, iisp = sp + 2;
+
+  fpskeysval (fp, "className", plot.chart_key, isp, 0);
+  fpskeysval (fp, "label", plot.chart_lbl, isp, 0);
+  fpskeysval (fp, "chartType", chart2str (plot.chart_type), isp, 0);
+  fpskeyival (fp, "chartReverse", plot.chart_reverse, isp, 0);
+  fpskeyival (fp, "redrawOnExpand", plot.redraw_expand, isp, 0);
+
+  /* D3.js data */
+  fpopen_obj_attr (fp, "d3", isp);
+  /* print chart definitions */
+  print_d3_chart_def (fp, chart, n, iisp);
+  /* close D3 */
+  fpclose_obj (fp, isp, 1);
+}
+
+/* Output D3.js hits/visitors plot definitions. */
+static void
+cae_count_plot (FILE *fp, GHTMLPlot plot, int sp) {
+  /* *INDENT-OFF* */
+  GChart def[] = {
+    {"y0", (GChartDef[]) {
+      {"key", "count"}, {"label", MTRC_CAE_COUNT_LBL}, ChartDefStopper
+    }},
+  };
+
+  plot.chart_key = (char[]) {"count"};
+  plot.chart_lbl = (char *) {MTRC_CAE_COUNT_LBL};
+  /* *INDENT-ON* */
+  print_plot_def (fp, plot, def, ARRAY_SIZE (def), sp);
+}
+
+/* Output D3.js avg duration plot definitions. */
+static void
+cae_avgts_plot (FILE *fp, GHTMLPlot plot, int sp) {
+  /* *INDENT-OFF* */
+  GChart def[] = {
+    {"y0", (GChartDef[]) {
+      {"key", "avgts"}, {"label", MTRC_CAE_AVG_DUR_LBL}, ChartDefStopper
+    }},
+  };
+
+  if (!conf.serve_usecs)
+    return;
+
+  plot.chart_key = (char[]) {"avgts"};
+  plot.chart_lbl = (char *) {MTRC_CAE_AVG_DUR_LBL};
+  /* *INDENT-ON* */
+  print_plot_def (fp, plot, def, ARRAY_SIZE (def), sp);
+}
+
+/* Output JSON data definitions. */
+static void
+print_json_data (FILE *fp, GHolder *holder) {
+  char *json = NULL;
+
+  if ((json = get_json (holder, 1)) == NULL)
+    return;
+
+  fprintf (fp, external_assets ? "" : "<script type='text/javascript'>");
+  fprintf (fp, "var json_data=%s", (conf.ws_auth_secret ? "{}" : json));
+  fprintf (fp, external_assets ? "\n" : "</script>");
+
+  free (json);
+}
+
+/* Output WebSocket connection definition. */
+static void
+print_conn_def (FILE *fp, const char *jwt) {
+  int sp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    sp += 1;
+
+  if (!conf.real_time_html)
+    return;
+
+  fprintf (fp, external_assets ? "" : "<script type='text/javascript'>");
+
+  if (conf.ws_auth_secret && jwt && !conf.ws_auth_verify_only)
+    fprintf (fp, "window.goaccessJWT=\"%s\";\n", jwt);
+
+  fprintf (fp, "var connection = ");
+  fpopen_obj (fp, sp);
+
+  if (conf.ws_auth_verify_only && conf.ws_auth_secret) {
+    fpskeysval (fp, "ws_auth_url", conf.ws_auth_url ? : "", sp, 0);
+    if (conf.ws_auth_refresh_url)
+      fpskeysval (fp, "ws_auth_refresh_url", conf.ws_auth_refresh_url ? : "", sp, 0);
+  }
+
+  fpskeysval (fp, "url", (conf.ws_url ? conf.ws_url : ""), sp, 0);
+  fpskeyival (fp, "port", (conf.port ? atoi (conf.port) : 7890), sp, 0);
+  fpskeyival (fp, "ping_interval", (conf.ping_interval ? atoi (conf.ping_interval) : 0), sp, 1);
+
+  fpclose_obj (fp, sp, 1);
+
+  fprintf (fp, external_assets ? ";\n" : "</script>");
+}
+
+/* Output JSON per panel metric definitions. */
+static void
+print_def_metric (FILE *fp, const GDefMetric def, int sp) {
+  int isp = 0;
+
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  if (def.cname)
+    fpskeysval (fp, "className", def.cname, isp, 0);
+  if (def.cwidth)
+    fpskeysval (fp, "colWidth", def.cwidth, isp, 0);
+  if (def.metakey)
+    fpskeysval (fp, "meta", def.metakey, isp, 0);
+  if (def.metatype)
+    fpskeysval (fp, "metaType", def.metatype, isp, 0);
+  if (def.metalbl)
+    fpskeysval (fp, "metaLabel", def.metalbl, isp, 0);
+  if (def.datatype)
+    fpskeysval (fp, "dataType", def.datatype, isp, 0);
+  if (def.hlregex)
+    fpskeysval (fp, "hlregex", def.hlregex, isp, 0);
+  if (def.datakey)
+    fpskeysval (fp, "key", def.datakey, isp, 0);
+  if (def.lbl)
+    fpskeysval (fp, "label", def.lbl, isp, 1);
+}
+
+/* Output JSON metric definition block. */
+static void
+print_def_block (FILE *fp, const GDefMetric def, int sp, int last) {
+  fpopen_obj (fp, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, last);
+}
+
+/* Output JSON overall requests definition block. */
+static void
+print_def_overall_requests (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_REQUESTS,
+    .datatype = "numeric",
+    .cname = "black"
+  };
+  fpopen_obj_attr (fp, OVERALL_REQ, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON overall valid requests definition block. */
+static void
+print_def_overall_valid_reqs (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_VALID,
+    .datatype = "numeric",
+    .cname = "green"
+  };
+  fpopen_obj_attr (fp, OVERALL_VALID, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON overall invalid requests definition block. */
+static void
+print_def_overall_invalid_reqs (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_FAILED,
+    .datatype = "numeric",
+    .cname = "red"
+  };
+  fpopen_obj_attr (fp, OVERALL_FAILED, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON process time definition block. */
+static void
+print_def_overall_processed_time (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_GEN_TIME,
+    .datatype = "secs",
+    .cname = "gray"
+  };
+  fpopen_obj_attr (fp, OVERALL_GENTIME, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON overall events definition block. */
+static void
+print_def_overall_cae_events (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_CAE_EVENTS,
+    .datatype = "numeric",
+    .cname = "blue"
+  };
+  fpopen_obj_attr (fp, OVERALL_CAE_EVENTS, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON overall modules definition block. */
+static void
+print_def_overall_cae_modules (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_CAE_MODULES,
+    .datatype = "numeric",
+  };
+  fpopen_obj_attr (fp, OVERALL_CAE_MODULES, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON overall sessions definition block. */
+static void
+print_def_overall_cae_sessions (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_CAE_SESSIONS,
+    .datatype = "numeric",
+  };
+  fpopen_obj_attr (fp, OVERALL_CAE_SESSIONS, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON log size definition block. */
+static void
+print_def_overall_log_size (FILE *fp, int sp) {
+  GDefMetric def = {
+    .lbl = T_LOG,
+    .datatype = "bytes",
+  };
+  fpopen_obj_attr (fp, OVERALL_LOGSIZE, sp);
+  print_def_metric (fp, def, sp);
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output JSON count definition block. */
+static void
+print_def_cae_count (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "count",
+    .lbl = MTRC_CAE_COUNT_LBL,
+    .datatype = "numeric",
+    .metakey = "count",
+    .cwidth = "12%",
+  };
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON sessions definition block. */
+static void
+print_def_cae_sessions (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "sessions",
+    .lbl = MTRC_CAE_SESSIONS_LBL,
+    .datatype = "numeric",
+    .metakey = "count",
+    .cwidth = "12%",
+  };
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON percent definition block. */
+static void
+print_def_cae_percent (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "percent",
+    .lbl = MTRC_CAE_PERC_LBL,
+    .datatype = "numeric",
+    .metakey = "count",
+    .cwidth = "8%",
+  };
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON Avg (ms) definition block. */
+static void
+print_def_avgts (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "avgts",
+    .lbl = MTRC_CAE_AVG_DUR_LBL,
+    .datatype = "utime",
+    .metakey = "avg",
+    .cwidth = "8%",
+  };
+
+  if (!conf.serve_usecs)
+    return;
+
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON Cum (ms) definition block. */
+static void
+print_def_cumts (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "cumts",
+    .lbl = MTRC_CAE_CUM_DUR_LBL,
+    .datatype = "utime",
+    .metakey = "count",
+    .cwidth = "8%",
+  };
+
+  if (!conf.serve_usecs)
+    return;
+
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON Max (ms) definition block. */
+static void
+print_def_maxts (FILE *fp, int sp) {
+  GDefMetric def = {
+    .datakey = "maxts",
+    .lbl = MTRC_CAE_MAX_DUR_LBL,
+    .datatype = "utime",
+    .metakey = "count",
+    .cwidth = "8%",
+  };
+
+  if (!conf.serve_usecs)
+    return;
+  print_def_block (fp, def, sp, 0);
+}
+
+/* Output JSON data definition block. */
+static void
+print_def_data (FILE *fp, GModule module, int sp) {
+  GDefMetric def = {
+    .cname = "trunc",
+    .cwidth = "100%",
+    .datakey = "data",
+    .datatype = "string",
+    .lbl = MTRC_CAE_EVENT_LBL,
+    .metakey = "unique",
+    .metalbl = "Total",
+    .metatype = "numeric",
+    .hlregex = "{" "\\\"^(1\\\\\\\\d{2}|1xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lblu'>$1</b>$2\\\"," /* 2xx Success */
+      "\\\"^(2\\\\\\\\d{2}|2xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lgrn'>$1</b>$2\\\"," /* 2xx Success */
+      "\\\"^(3\\\\\\\\d{2}|3xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lprp'>$1</b>$2\\\"," /* 3xx Success */
+      "\\\"^(4\\\\\\\\d{2}|4xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lyel'>$1</b>$2\\\"," /* 4xx Success */
+      "\\\"^(5\\\\\\\\d{2}|5xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lred'>$1</b>$2\\\"," /* 5xx Success */
+      "\\\"^(0\\\\\\\\d{2}|0xx)(\\\\\\\\s.*)$\\\": \\\"<b class='span-hl lgry'>$1</b>$2\\\"," /* 5xx Success */
+      "\\\"^(AS\\\\\\\\d+)\\\": \\\"<b>$1</b>\\\"," /* AS9823 Google */
+      "\\\"^(\\\\\\\\d+:)\\\": \\\"<b>$1</b>\\\"," /* 01234: Data */
+      "\\\"(\\\\\\\\d+)|(:\\\\\\\\d+)|(:\\\\\\\\d+:\\\\\\\\d+)\\\": \\\"$1<b>$2</b>\\\"," /* 12/May/2022:12:34 */
+      "\\\"^([A-Z]{2})(\\\\\\\\s.*$)\\\": \\\"<b class='span-hl g5'>$1</b>$2\\\"" /* US United States */
+      "}",
+  };
+
+  print_def_block (fp, def, sp, 1);
+}
+
+/* Get the number of plots for the given panel definition.
+ *
+ * The number of plots for the given panel is returned. */
+static int
+count_plot_fp (const GHTML *def) {
+  int i = 0;
+  for (i = 0; def->chart[i].plot != 0; ++i);
+  return i;
+}
+
+/* Entry function to output JSON plot definition block. */
+static void
+print_def_plot (FILE *fp, const GHTML *def, int sp) {
+  int i, isp = 0, n = count_plot_fp (def);
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  fpopen_arr_attr (fp, "plot", sp);
+
+  for (i = 0; i < n; ++i) {
+    fpopen_obj (fp, isp);
+    def->chart[i].plot (fp, def->chart[i], isp);
+    fpclose_obj (fp, isp, (i == n - 1));
+  }
+
+  fpclose_arr (fp, sp, 0);
+}
+
+/* Output JSON host panel definitions. */
+static void
+print_host_metrics (FILE *fp, const GHTML *def, int sp) {
+  const GOutput *output = output_lookup (def->module);
+
+  if (output->cae_count)
+    print_def_cae_count (fp, sp);
+  if (output->cae_sessions)
+    print_def_cae_sessions (fp, sp);
+  if (output->cae_percent)
+    print_def_cae_percent (fp, sp);
+  if (output->avgts)
+    print_def_avgts (fp, sp);
+  if (output->cumts)
+    print_def_cumts (fp, sp);
+  if (output->maxts)
+    print_def_maxts (fp, sp);
+
+  print_def_data (fp, def->module, sp);
+}
+
+/* Output JSON panel definitions. */
+static void
+print_metrics (FILE *fp, const GHTML *def, int sp) {
+  const GOutput *output = output_lookup (def->module);
+
+  if (output->cae_count)
+    print_def_cae_count (fp, sp);
+  if (output->cae_sessions)
+    print_def_cae_sessions (fp, sp);
+  if (output->cae_percent)
+    print_def_cae_percent (fp, sp);
+  if (output->avgts)
+    print_def_avgts (fp, sp);
+  if (output->cumts)
+    print_def_cumts (fp, sp);
+  if (output->maxts)
+    print_def_maxts (fp, sp);
+
+  print_def_data (fp, def->module, sp);
+}
+
+/* Entry point to output JSON metric definitions. */
+static void
+print_def_metrics (FILE *fp, const GHTML *def, int sp) {
+  int isp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  /* open data metric data */
+  fpopen_arr_attr (fp, "items", sp);
+  /* definition metrics */
+  def->metrics (fp, def, isp);
+  /* close metrics block */
+  fpclose_arr (fp, sp, 1);
+}
+
+/* Output panel header and description metadata definitions. */
+static void
+print_def_meta (FILE *fp, const char *head, const char *desc, int sp) {
+  int isp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  fpskeysval (fp, "head", head, isp, 0);
+  fpskeysval (fp, "desc", desc, isp, 0);
+}
+
+/* Output panel sort metadata definitions. */
+static void
+print_def_sort (FILE *fp, const GHTML *def, int sp) {
+  GSort sort = module_sort[def->module];
+  int isp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  /* output open sort attribute */
+  fpopen_obj_attr (fp, "sort", sp);
+  fpskeysval (fp, "field", get_sort_field_key (sort.field), isp, 0);
+  fpskeysval (fp, "order", get_sort_order_str (sort.sort), isp, 1);
+  /* output close sort attribute */
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Output panel metadata definitions. */
+static void
+print_panel_def_meta (FILE *fp, const GHTML *def, int sp) {
+  const char *desc = module_to_desc (def->module);
+  const char *head = module_to_head (def->module);
+  const char *id = module_to_id (def->module);
+  const char *label = module_to_label (def->module);
+
+  int isp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1;
+
+  print_def_meta (fp, head, desc, sp);
+
+  fpskeysval (fp, "id", id, isp, 0);
+  fpskeysval (fp, "label", label, isp, 0);
+  fpskeyival (fp, "table", def->table, isp, 0);
+  fpskeyival (fp, "hasMap", def->has_map, isp, 0);
+
+  print_def_sort (fp, def, isp);
+  print_def_plot (fp, def, isp);
+  print_def_metrics (fp, def, isp);
+}
+
+/* Output definitions for the given panel. */
+static void
+print_json_def (FILE *fp, const GHTML *def) {
+  int sp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    sp = 1;
+
+  /* output open panel attribute */
+  fpopen_obj_attr (fp, module_to_id (def->module), sp);
+  /* output panel data definitions */
+  print_panel_def_meta (fp, def, sp);
+  /* output close panel attribute */
+  fpclose_obj (fp, sp, 1);
+
+  fpjson (fp, (def->module != TOTAL_MODULES - 1) ? ",%.*s" : "%.*s", nlines, NL);
+}
+
+/* Output overall definitions. */
+static void
+print_def_summary (FILE *fp, int sp) {
+  int isp = 0, iisp = 0;
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    isp = sp + 1, iisp = sp + 2;
+
+  /* open metrics block */
+  fpopen_obj_attr (fp, "items", isp);
+
+  print_def_overall_requests (fp, iisp);
+  print_def_overall_valid_reqs (fp, iisp);
+  print_def_overall_invalid_reqs (fp, iisp);
+  print_def_overall_processed_time (fp, iisp);
+  print_def_overall_cae_events (fp, iisp);
+  print_def_overall_cae_modules (fp, iisp);
+  print_def_overall_cae_sessions (fp, iisp);
+  print_def_overall_log_size (fp, iisp);
+
+  /* close metrics block */
+  fpclose_obj (fp, isp, 1);
+}
+
+/* Cheap JSON internationalisation (i18n) - report labels */
+static void
+print_json_i18n_def (FILE *fp) {
+  int sp = 0;
+  size_t i = 0;
+
+  /* *INDENT-OFF* */
+  static const char *json_i18n[][2] = {
+    {"theme"                    , HTML_REPORT_NAV_THEME}                        ,
+    {"dark_gray"                , HTML_REPORT_NAV_DARK_GRAY}                    ,
+    {"bright"                   , HTML_REPORT_NAV_BRIGHT}                       ,
+    {"dark_blue"                , HTML_REPORT_NAV_DARK_BLUE}                    ,
+    {"dark_purple"              , HTML_REPORT_NAV_DARK_PURPLE}                  ,
+    {"panels"                   , HTML_REPORT_NAV_PANELS}                       ,
+    {"items_per_page"           , HTML_REPORT_NAV_ITEMS_PER_PAGE}               ,
+    {"tables"                   , HTML_REPORT_NAV_TABLES}                       ,
+    {"display_tables"           , HTML_REPORT_NAV_DISPLAY_TABLES}               ,
+    {"ah_small"                 , HTML_REPORT_NAV_AH_SMALL}                     ,
+    {"ah_small_title"           , HTML_REPORT_NAV_AH_SMALL_TITLE}               ,
+    {"toggle_panel"             , HTML_REPORT_NAV_TOGGLE_PANEL}                 ,
+    {"layout"                   , HTML_REPORT_NAV_LAYOUT}                       ,
+    {"horizontal"               , HTML_REPORT_NAV_HOR}                          ,
+    {"vertical"                 , HTML_REPORT_NAV_VER}                          ,
+    {"wide"                     , HTML_REPORT_NAV_WIDE}                         ,
+    {"file_opts"                , HTML_REPORT_NAV_FILE_OPTS}                    ,
+    {"export_json"              , HTML_REPORT_NAV_EXPORT_JSON}                  ,
+    {"panel_opts"               , HTML_REPORT_PANEL_PANEL_OPTS}                 ,
+    {"previous"                 , HTML_REPORT_PANEL_PREVIOUS}                   ,
+    {"next"                     , HTML_REPORT_PANEL_NEXT}                       ,
+    {"first"                    , HTML_REPORT_PANEL_FIRST}                      ,
+    {"last"                     , HTML_REPORT_PANEL_LAST}                       ,
+    {"chart_opts"               , HTML_REPORT_PANEL_CHART_OPTS}                 ,
+    {"chart"                    , HTML_REPORT_PANEL_CHART}                      ,
+    {"type"                     , HTML_REPORT_PANEL_TYPE}                       ,
+    {"area_spline"              , HTML_REPORT_PANEL_AREA_SPLINE}                ,
+    {"bar"                      , HTML_REPORT_PANEL_BAR}                        ,
+    {"wmap"                     , HTML_REPORT_PANEL_WMAP}                       ,
+    {"gmap"                     , HTML_REPORT_PANEL_GMAP}                       ,
+    {"plot_metric"              , HTML_REPORT_PANEL_PLOT_METRIC}                ,
+    {"table_columns"            , HTML_REPORT_PANEL_TABLE_COLS}                 ,
+    {"thead"                    , T_HEAD}                                       ,
+    {"version"                  , GO_VERSION}                                   ,
+    {"button_menu"              , HTML_REPORT_NAV_BUTTON_MENU}                  ,
+    {"button_settings"          , HTML_REPORT_NAV_BUTTON_SETTINGS}              ,
+    {"websocket_connected"      , HTML_REPORT_WEBSOCKET_STATUS_CONNECTED}       ,
+    {"websocket_disconnected"   , HTML_REPORT_WEBSOCKET_STATUS_DISCONNECTED}    ,
+  };
+  /* *INDENT-ON* */
+
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    sp = 1;
+
+  fpopen_obj (fp, 0);
+  for (i = 0; i < ARRAY_SIZE (json_i18n); ++i) {
+    fpskeysval (fp, json_i18n[i][0], _(json_i18n[i][1]), sp, 0);
+  }
+  fpclose_obj (fp, 0, 1);
+}
+
+/* Output definitions for the given panel. */
+static void
+print_json_def_summary (FILE *fp) {
+  int sp = 0;
+
+  /* use tabs to prettify output */
+  if (conf.json_pretty_print)
+    sp = 1;
+
+  /* output open panel attribute */
+  fpopen_obj_attr (fp, GENER_ID, sp);
+  print_def_meta (fp, _(T_HEAD), "", sp);
+  print_def_summary (fp, sp);
+  /* output close panel attribute */
+  fpclose_obj (fp, sp, 0);
+}
+
+/* Entry point to output definitions for all panels. */
+static void
+print_json_defs (FILE *fp) {
+  const GHTML *def;
+  size_t idx = 0;
+
+  fprintf (fp, external_assets ? "" : "<script type='text/javascript'>");
+
+  fprintf (fp, "var json_i18n=");
+  print_json_i18n_def (fp);
+  fprintf (fp, ";");
+
+  fprintf (fp, "var html_prefs=%s;", conf.html_prefs ? conf.html_prefs : "{}");
+  fprintf (fp, "var countries110m=%.*s;", countries_json_length, countries_json);
+  fprintf (fp, "var cities10m=%.*s;", cities_json_length, cities_json);
+  fprintf (fp, "var html_prefs=%s;", conf.html_prefs ? conf.html_prefs : "{}");
+  fprintf (fp, "var user_interface=");
+  fpopen_obj (fp, 0);
+
+  print_json_def_summary (fp);
+  FOREACH_MODULE (idx, module_list) {
+    if ((def = panel_lookup (module_list[idx]))) {
+      print_json_def (fp, def);
+    }
+  }
+
+  fpclose_obj (fp, 0, 1);
+
+  fprintf (fp, external_assets ? "\n" : "</script>");
+}
+
+static char *
+get_asset_filepath (const char *filename, const char *asset_fname) {
+  char *fname = NULL, *path = NULL, *s = NULL;
+
+  path = xstrdup (filename);
+  fname = xstrdup (basename (path));
+  path[strlen (filename) - strlen (fname)] = '\0';
+
+  s = xmalloc (snprintf (NULL, 0, "%s%s", path, asset_fname) + 1);
+  sprintf (s, "%s%s", path, asset_fname);
+  free (path);
+  free (fname);
+
+  return s;
+}
+
+static FILE *
+get_asset (const char *filename, const char *asset_fname) {
+  FILE *fp = NULL;
+  char *fn = NULL;
+
+  if (!(fn = get_asset_filepath (filename, asset_fname)))
+    FATAL ("Invalid JS file.");
+  if (!(fp = fopen (fn, "w")))
+    FATAL ("Unable to open file %s.", strerror (errno));
+  free (fn);
+
+  return fp;
+}
+
+/* entry point to generate a report writing it to the fp */
+void
+output_html (GHolder *holder, const char *filename) {
+  FILE *fp, *fjs = NULL, *fcs = NULL;
+  char now[DATE_TIME] = { 0 };
+  char *jwt = NULL;
+
+  if (filename != NULL)
+    fp = fopen (filename, "w");
+  else
+    fp = stdout;
+
+  if (!fp)
+    FATAL ("Unable to open HTML file: %s.", strerror (errno));
+
+  if (filename && conf.external_assets) {
+    fjs = get_asset (filename, FILENAME_JS);
+    fcs = get_asset (filename, FILENAME_CSS);
+    external_assets = 1;
+  }
+
+  /* use new lines to prettify output */
+  if (conf.json_pretty_print)
+    nlines = 1;
+  set_json_nlines (nlines);
+
+  generate_time ();
+  strftime (now, DATE_TIME, "%Y-%m-%d %H:%M:%S %z", &now_tm);
+
+#ifdef HAVE_LIBSSL
+  if (conf.ws_auth_secret)
+    jwt = create_jwt_token ();
+#endif
+
+  print_html_header (fp, fcs);
+
+  print_html_body (fp, now);
+  print_json_defs ((fjs ? fjs : fp));
+  print_json_data ((fjs ? fjs : fp), holder);
+  print_conn_def ((fjs ? fjs : fp), jwt);
+
+  print_html_footer (fp, fjs);
+
+  free (jwt);
+
+  if (fjs)
+    fclose (fjs);
+  if (fcs)
+    fclose (fcs);
+  fclose (fp);
+}

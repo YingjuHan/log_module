@@ -1,0 +1,186 @@
+name: .deb packaging buildx
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_job:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 LTS - Jammy
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: ubuntu22.04
+          - arch: aarch64
+            platform: linux/arm64
+            distro: ubuntu22.04
+          - arch: amd64
+            platform: linux/amd64
+            distro: ubuntu22.04
+
+          # Ubuntu 24.04 LTS - Noble
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: ubuntu24.04
+          - arch: aarch64
+            platform: linux/arm64
+            distro: ubuntu24.04
+          - arch: amd64
+            platform: linux/amd64
+            distro: ubuntu24.04
+
+          # Ubuntu 25.10 - Questing
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: ubuntu25.10
+          - arch: aarch64
+            platform: linux/arm64
+            distro: ubuntu25.10
+          - arch: amd64
+            platform: linux/amd64
+            distro: ubuntu25.10
+
+          # Ubuntu 26.04 LTS - Resolute
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: ubuntu26.04
+          - arch: aarch64
+            platform: linux/arm64
+            distro: ubuntu26.04
+          - arch: amd64
+            platform: linux/amd64
+            distro: ubuntu26.04
+
+          # Debian 11 - Bullseye
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: bullseye
+          - arch: aarch64
+            platform: linux/arm64
+            distro: bullseye
+          - arch: amd64
+            platform: linux/amd64
+            distro: bullseye
+          - arch: i386
+            platform: linux/386
+            distro: bullseye
+
+          # Debian 12 - Bookworm
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: bookworm
+          - arch: aarch64
+            platform: linux/arm64
+            distro: bookworm
+          - arch: amd64
+            platform: linux/amd64
+            distro: bookworm
+          - arch: i386
+            platform: linux/386
+            distro: bookworm
+
+          # Debian 13 - Trixie
+          - arch: arm32v7
+            platform: linux/arm/v7
+            distro: trixie
+          - arch: aarch64
+            platform: linux/arm64
+            distro: trixie
+          - arch: amd64
+            platform: linux/amd64
+            distro: trixie
+          - arch: i386
+            platform: linux/386
+            distro: trixie
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create artifacts directory
+        run: mkdir -p "${GITHUB_WORKSPACE}/artifacts"
+
+      - name: Build deb package
+        run: |
+          set -euo pipefail
+
+          echo "Matrix arch: ${{ matrix.arch }}"
+          echo "Matrix platform: ${{ matrix.platform }}"
+          echo "Matrix distro: ${{ matrix.distro }}"
+
+          MY_DISTRO="${{ matrix.distro }}"
+
+          if [[ "$MY_DISTRO" == ubuntu* ]]; then
+            VERSION_TAG="${MY_DISTRO#ubuntu}"
+            BASE_IMAGE="ubuntu:${VERSION_TAG}"
+          else
+            BASE_IMAGE="debian:${MY_DISTRO}"
+          fi
+
+          echo "Using base image: ${BASE_IMAGE}"
+          echo "Using platform: ${{ matrix.platform }}"
+
+          docker run --rm --platform "${{ matrix.platform }}" \
+            -v "${GITHUB_WORKSPACE}/artifacts:/artifacts" \
+            "${BASE_IMAGE}" bash -c "\
+              set -e && \
+              apt-get update && \
+              apt-get install -y ca-certificates wget curl lsb-release && \
+              cd /artifacts && \
+              curl -O https://deb.goaccess.io/provision/provision.dpkg.sh && \
+              chmod +x provision.dpkg.sh && \
+              ./provision.dpkg.sh && \
+              ls -lath && \
+              echo 'Build Success'"
+
+      - name: Test deb package installation
+        run: |
+          set -euo pipefail
+
+          DEB_FILE=$(find "${GITHUB_WORKSPACE}/artifacts" -maxdepth 1 -name "goaccess_*.deb" | head -n 1)
+
+          if [[ -z "$DEB_FILE" ]]; then
+            echo "No goaccess .deb package found"
+            exit 1
+          fi
+
+          echo "Found deb package: $DEB_FILE"
+
+          case "${{ matrix.distro }}" in
+            bullseye) TEST_IMAGE="debian:bullseye" ;;
+            bookworm) TEST_IMAGE="debian:bookworm" ;;
+            trixie) TEST_IMAGE="debian:trixie" ;;
+            ubuntu22.04) TEST_IMAGE="ubuntu:22.04" ;;
+            ubuntu24.04) TEST_IMAGE="ubuntu:24.04" ;;
+            ubuntu25.10) TEST_IMAGE="ubuntu:25.10" ;;
+            ubuntu26.04) TEST_IMAGE="ubuntu:26.04" ;;
+            *) echo "Unknown distro: ${{ matrix.distro }}" && exit 1 ;;
+          esac
+
+          echo "Using Docker image for testing: $TEST_IMAGE"
+          echo "Using platform for testing: ${{ matrix.platform }}"
+
+          docker run --rm --platform "${{ matrix.platform }}" \
+            -v "${GITHUB_WORKSPACE}/artifacts:/artifacts" \
+            "$TEST_IMAGE" bash -c "\
+              set -e && \
+              apt-get update && \
+              apt-get install -y /artifacts/$(basename "$DEB_FILE") && \
+              goaccess --version && \
+              apt-get remove -y goaccess"
+
+      - name: Upload deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package-${{ matrix.distro }}-${{ matrix.arch }}
+          path: artifacts/*.deb
+          retention-days: 1

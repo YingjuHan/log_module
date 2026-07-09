@@ -1,0 +1,18 @@
+{
+  "global": {
+    "span_p95_us": 500000,
+    "error_rate": 0.05,
+    "warn_count": 100,
+    "residual_last_gt": 0.02,
+    "residual_drop_ratio_lt": 0.9
+  },
+  "modules": {
+    "Solver": {
+      "span_p95_us": 250000,
+      "error_rate": 0.05
+    },
+    "PostProcess.Output": {
+      "error_rate": 0.1
+    }
+  }
+}

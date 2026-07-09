@@ -1,0 +1,148 @@
+name: .deb packaging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_job:
+    # The host should always be linux
+    runs-on: ubuntu-latest
+    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
+
+    # Run steps on a matrix of arch/distro combinations
+    strategy:
+      matrix:
+        include:
+          - arch: arm32v7
+            distro: ubuntu16.04
+          - arch: arm32v7
+            distro: ubuntu18.04
+          - arch: arm32v7
+            distro: ubuntu22.04
+          - arch: arm32v7
+            distro: ubuntu24.04
+          - arch: arm32v7
+            distro: ubuntu24.10            
+          - arch: arm32v7
+            distro: bullseye
+          - arch: arm32v7
+            distro: bookworm      
+          - arch: aarch64
+            distro: ubuntu18.04
+          - arch: aarch64
+            distro: ubuntu20.04
+          - arch: aarch64
+            distro: ubuntu22.04            
+          - arch: aarch64
+            distro: ubuntu24.04
+          - arch: aarch64
+            distro: ubuntu24.10            
+          - arch: aarch64
+            distro: buster
+          - arch: aarch64
+            distro: bullseye
+          - arch: aarch64
+            distro: bookworm
+          - arch: amd64
+            distro: buster
+          - arch: i386
+            distro: buster
+          - arch: amd64
+            distro: bullseye
+          - arch: amd64
+            distro: bookworm
+          - arch: i386
+            distro: bullseye
+          - arch: i386
+            distro: bookworm
+          - arch: amd64
+            distro: ubuntu16.04
+          - arch: i386
+            distro: ubuntu16.04
+          - arch: amd64
+            distro: ubuntu18.04
+          - arch: i386
+            distro: ubuntu18.04
+          - arch: amd64
+            distro: ubuntu20.04
+          - arch: amd64
+            distro: ubuntu22.04
+          - arch: amd64
+            distro: ubuntu24.04
+          - arch: amd64
+            distro: ubuntu24.10            
+
+    steps:
+      - uses: actions/checkout@v2.1.0
+
+      - uses: allinurl/run-on-arch-action@master
+        name: Build artifact
+        id: build
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+          # Not required, but speeds up builds
+          githubToken: ${{ github.token }}
+          # Create an artifacts directory
+          setup: |
+            mkdir -p "${PWD}/artifacts"
+          # Mount the artifacts directory as /artifacts in the container
+          dockerRunArgs: |
+            --volume "${PWD}/artifacts:/artifacts"
+          # The shell to run commands with in the container
+          shell: /bin/bash
+          # Install some dependencies in the container.
+          install: |
+            case "${{ matrix.distro }}" in
+              ubuntu*|jessie|stretch|buster|bullseye|bookworm)
+                apt-get update && apt-get install -y ca-certificates wget curl lsb-release && apt-get clean all
+                ;;
+            esac
+          # Produce a binary artifact and place it in the mounted volume
+          run: |
+            ls -lath "/artifacts"
+            curl -O https://deb.goaccess.io/provision/provision.dpkg.sh
+            chmod +x ./provision.dpkg.sh
+            ./provision.dpkg.sh
+            echo "Success!!"
+
+      - name: Show the artifact
+        run: |
+          pwd
+          ls -lath "${PWD}/artifacts"
+
+      - name: Test deb package installation
+        run: |
+          # Find the generated deb package
+          DEB_FILE=$(find "${PWD}/artifacts" -name "goaccess_*.deb")
+          echo "Found deb package: $DEB_FILE"
+
+          # Determine the correct Docker image for the distro
+          case "${{ matrix.distro }}" in
+            bookworm) IMAGE="debian:bookworm" ;;
+            bullseye) IMAGE="debian:bullseye" ;;
+            buster) IMAGE="debian:buster" ;;
+            ubuntu16.04) IMAGE="ubuntu:16.04" ;;
+            ubuntu18.04) IMAGE="ubuntu:18.04" ;;
+            ubuntu20.04) IMAGE="ubuntu:20.04" ;;
+            ubuntu22.04) IMAGE="ubuntu:22.04" ;;
+            ubuntu24.04) IMAGE="ubuntu:24.04" ;;
+            ubuntu24.10) IMAGE="ubuntu:24.10" ;;
+            *) echo "Unknown distro: ${{ matrix.distro }}" && exit 1 ;;
+          esac
+
+          echo "Using Docker image: $IMAGE"
+
+          # Run a container with the correct architecture and test the installation
+          docker run --rm -v "${PWD}/artifacts:/artifacts" --platform linux/${{ matrix.arch }} "$IMAGE" bash -c "
+            apt-get update &&
+            apt-get install -y /artifacts/$(basename $DEB_FILE) &&
+            goaccess --version &&
+            apt-get remove -y goaccess"
+
+      - name: Upload deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package-${{ matrix.distro }}-${{ matrix.arch }}
+          path: 'artifacts/*.deb'
+          retention-days: 1
