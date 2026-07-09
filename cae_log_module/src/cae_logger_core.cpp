@@ -13,6 +13,24 @@ namespace cae
 {
 namespace detail
 {
+    namespace
+    {
+        bool runtime_options_require_printer_rebuild(const LoggerOptions& theCurrent,
+                                                     const LoggerOptions& theNext)
+        {
+            return theCurrent.thread_model != theNext.thread_model
+                || theCurrent.process_model != theNext.process_model
+                || theCurrent.io_mode != theNext.io_mode
+                || theCurrent.enable_console != theNext.enable_console
+                || theCurrent.enable_text_log != theNext.enable_text_log
+                || theCurrent.enable_analysis_log != theNext.enable_analysis_log
+                || theCurrent.async_queue_size != theNext.async_queue_size
+                || theCurrent.async_thread_count != theNext.async_thread_count
+                || theCurrent.async_overflow_policy != theNext.async_overflow_policy
+                || theCurrent.log_dir != theNext.log_dir
+                || theCurrent.analysis_log_name != theNext.analysis_log_name;
+        }
+    }
 
     //=======================================================================
     // function : LoggerCore::instance
@@ -45,24 +63,45 @@ namespace detail
         reset_runtime_stats_unlocked();
         myIsInitialized = true;
 
-        fs::create_directories(myOptions.log_dir);
-        if (myOptions.io_mode == IOMode::Async)
+        create_printers_unlocked();
+    }
+
+    //=======================================================================
+    // function : LoggerCore::options
+    // purpose  :
+    //=======================================================================
+    LoggerOptions LoggerCore::options() const
+    {
+        std::lock_guard<std::mutex> aLock(myMutex);
+        if (!myIsInitialized)
         {
-            spdlog::init_thread_pool(myOptions.async_queue_size, myOptions.async_thread_count);
+            return normalize_options(LoggerOptions{});
         }
 
-        if (myOptions.enable_console)
+        return myOptions;
+    }
+
+    //=======================================================================
+    // function : LoggerCore::update_options
+    // purpose  :
+    //=======================================================================
+    void LoggerCore::update_options(LoggerOptions theOptions)
+    {
+        theOptions = normalize_options(std::move(theOptions));
+
+        std::lock_guard<std::mutex> aLock(myMutex);
+        if (!myIsInitialized)
         {
-            myPrinters.push_back(std::make_shared<ConsolePrinter>(myOptions));
+            myOptions = std::move(theOptions);
+            myJobId = myOptions.job_id;
+            myInitTime = Clock::now();
+            reset_runtime_stats_unlocked();
+            myIsInitialized = true;
+            create_printers_unlocked();
+            return;
         }
-        if (myOptions.enable_text_log)
-        {
-            myPrinters.push_back(std::make_shared<TextFilePrinter>(myOptions));
-        }
-        if (myOptions.enable_analysis_log)
-        {
-            myPrinters.push_back(std::make_shared<JsonlAnalysisPrinter>(myOptions));
-        }
+
+        apply_runtime_options_unlocked(std::move(theOptions));
     }
 
     //=======================================================================
@@ -103,8 +142,20 @@ namespace detail
     //=======================================================================
     void LoggerCore::set_config_path(std::string theConfigPath)
     {
+        optional<fs::FileTime> aConfigMTime;
+        if (!theConfigPath.empty())
+        {
+            std::error_code       anError;
+            const fs::FileTime    aCurrentWriteTime = fs::last_write_time(fs::path(theConfigPath), anError);
+            if (!anError)
+            {
+                aConfigMTime = aCurrentWriteTime;
+            }
+        }
+
         std::lock_guard<std::mutex> aLock(myMutex);
         myConfigPath = std::move(theConfigPath);
+        myConfigMTime = aConfigMTime;
     }
 
     //=======================================================================
@@ -212,24 +263,7 @@ namespace detail
         myOptions = normalize_options(LoggerOptions{});
         myInitTime = Clock::now();
         reset_runtime_stats_unlocked();
-        fs::create_directories(myOptions.log_dir);
-        if (myOptions.io_mode == IOMode::Async)
-        {
-            spdlog::init_thread_pool(myOptions.async_queue_size, myOptions.async_thread_count);
-        }
-        if (myOptions.enable_console)
-        {
-            myPrinters.push_back(std::make_shared<ConsolePrinter>(myOptions));
-        }
-        if (myOptions.enable_text_log)
-        {
-            myPrinters.push_back(std::make_shared<TextFilePrinter>(myOptions));
-        }
-        if (myOptions.enable_analysis_log)
-        {
-            myPrinters.push_back(std::make_shared<JsonlAnalysisPrinter>(myOptions));
-        }
-
+        create_printers_unlocked();
         myIsInitialized = true;
     }
 
@@ -239,13 +273,23 @@ namespace detail
     //=======================================================================
     void LoggerCore::maybe_reload_runtime_options()
     {
-        if (myConfigPath.empty())
+        std::string aConfigPath;
+        {
+            std::lock_guard<std::mutex> aLock(myMutex);
+            if (myConfigPath.empty())
+            {
+                return;
+            }
+            aConfigPath = myConfigPath;
+        }
+
+        if (aConfigPath.empty())
         {
             return;
         }
 
         std::error_code anError;
-        const fs::FileTime aCurrentWriteTime = fs::last_write_time(fs::path(myConfigPath), anError);
+        const fs::FileTime aCurrentWriteTime = fs::last_write_time(fs::path(aConfigPath), anError);
         if (anError)
         {
             return;
@@ -254,6 +298,10 @@ namespace detail
         bool toReload = false;
         {
             std::lock_guard<std::mutex> aLock(myMutex);
+            if (aConfigPath != myConfigPath)
+            {
+                return;
+            }
             if (!myConfigMTime.has_value() || aCurrentWriteTime != *myConfigMTime)
             {
                 myConfigMTime = aCurrentWriteTime;
@@ -265,30 +313,14 @@ namespace detail
             return;
         }
 
-        const LoggerOptions         aReloaded = normalize_options(load_options_from_file(myConfigPath));
+        const LoggerOptions         aReloaded = normalize_options(load_options_from_file(aConfigPath));
         std::lock_guard<std::mutex> aLock(myMutex);
-        myOptions.min_level = aReloaded.min_level;
-        myOptions.flush_level = aReloaded.flush_level;
-        myOptions.global_pattern = aReloaded.global_pattern;
-        myOptions.enable_call_chain_analysis = aReloaded.enable_call_chain_analysis;
-        myOptions.call_chain_min_level = aReloaded.call_chain_min_level;
-        myOptions.call_chain_max_depth = aReloaded.call_chain_max_depth;
-        myOptions.call_chain_skip = aReloaded.call_chain_skip;
-        myOptions.call_chain_sample_rate = aReloaded.call_chain_sample_rate;
-        myOptions.enable_lossy_drop_policy = aReloaded.enable_lossy_drop_policy;
-        myOptions.lossy_drop_below_level = aReloaded.lossy_drop_below_level;
-        myOptions.analysis_log_max_bytes = aReloaded.analysis_log_max_bytes;
-        myOptions.analysis_log_retention_files = aReloaded.analysis_log_retention_files;
-        myOptions.logger_health_interval_events = aReloaded.logger_health_interval_events;
-        if (!aReloaded.job_id.empty())
+        if (aConfigPath != myConfigPath)
         {
-            myJobId = aReloaded.job_id;
+            return;
         }
-
-        for (const auto& aPrinter : myPrinters)
-        {
-            aPrinter->reload_options(myOptions);
-        }
+        apply_runtime_options_unlocked(aReloaded);
+        myConfigMTime = aCurrentWriteTime;
     }
 
     //=======================================================================
@@ -591,6 +623,63 @@ namespace detail
         myRecordsDropped.store(0, std::memory_order_relaxed);
         myCallChainsCaptured.store(0, std::memory_order_relaxed);
         myCallChainsSkipped.store(0, std::memory_order_relaxed);
+    }
+
+    //=======================================================================
+    // function : LoggerCore::create_printers_unlocked
+    // purpose  :
+    //=======================================================================
+    void LoggerCore::create_printers_unlocked()
+    {
+        fs::create_directories(myOptions.log_dir);
+        if (myOptions.io_mode == IOMode::Async)
+        {
+            spdlog::init_thread_pool(myOptions.async_queue_size, myOptions.async_thread_count);
+        }
+
+        if (myOptions.enable_console)
+        {
+            myPrinters.push_back(std::make_shared<ConsolePrinter>(myOptions));
+        }
+        if (myOptions.enable_text_log)
+        {
+            myPrinters.push_back(std::make_shared<TextFilePrinter>(myOptions));
+        }
+        if (myOptions.enable_analysis_log)
+        {
+            myPrinters.push_back(std::make_shared<JsonlAnalysisPrinter>(myOptions));
+        }
+    }
+
+    //=======================================================================
+    // function : LoggerCore::apply_runtime_options_unlocked
+    // purpose  :
+    //=======================================================================
+    void LoggerCore::apply_runtime_options_unlocked(LoggerOptions theOptions)
+    {
+        const bool toRebuildPrinters = runtime_options_require_printer_rebuild(myOptions, theOptions);
+
+        if (toRebuildPrinters)
+        {
+            close_printers_unlocked();
+        }
+
+        myOptions = std::move(theOptions);
+        if (!myOptions.job_id.empty())
+        {
+            myJobId = myOptions.job_id;
+        }
+
+        if (toRebuildPrinters)
+        {
+            create_printers_unlocked();
+            return;
+        }
+
+        for (const auto& aPrinter : myPrinters)
+        {
+            aPrinter->reload_options(myOptions);
+        }
     }
 
     //=======================================================================

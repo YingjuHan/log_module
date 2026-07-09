@@ -32,6 +32,33 @@ void init(const LoggerOptions& theOptions)
 }
 
 //=======================================================================
+// function : load_options_from_file
+// purpose  :
+//=======================================================================
+LoggerOptions load_options_from_file(const std::string& theConfigPath)
+{
+    return detail::normalize_options(detail::load_options_from_file(theConfigPath));
+}
+
+//=======================================================================
+// function : get_options
+// purpose  :
+//=======================================================================
+LoggerOptions get_options()
+{
+    return detail::LoggerCore::instance().options();
+}
+
+//=======================================================================
+// function : update_options
+// purpose  :
+//=======================================================================
+void update_options(const LoggerOptions& theOptions)
+{
+    detail::LoggerCore::instance().update_options(theOptions);
+}
+
+//=======================================================================
 // function : set_session
 // purpose  :
 //=======================================================================

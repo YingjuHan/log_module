@@ -92,10 +92,15 @@ add_executable(qt_emit_macro_compat
     sample/qt_emit_macro_compat.cpp
 )
 
+add_executable(runtime_config_hot_reload
+    sample/runtime_config_update.cpp
+)
+
 setup_sample_target(app_main)
 setup_sample_target(cae_postprocess_demo)
 setup_sample_target(user_document_demo)
 setup_sample_target(qt_emit_macro_compat)
+setup_sample_target(runtime_config_hot_reload)
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
 
@@ -117,6 +122,11 @@ if(BUILD_TESTING)
 
     add_test(NAME qt_emit_macro_compat_smoke COMMAND qt_emit_macro_compat)
     set_tests_properties(qt_emit_macro_compat_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+
+    add_test(NAME runtime_config_update_smoke COMMAND runtime_config_hot_reload)
+    set_tests_properties(runtime_config_update_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
 endif()

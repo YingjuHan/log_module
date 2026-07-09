@@ -115,6 +115,28 @@ int main() {
 cae::init("cae_logger.conf");
 ```
 
+Read an INI file, modify the resulting options, then initialize:
+
+```cpp
+auto options = cae::load_options_from_file("cae_logger_config.ini");
+options.min_level = cae::Level::Debug;
+options.log_dir = "debug_logs";
+cae::init(options);
+```
+
+Apply runtime changes to later log records:
+
+```cpp
+auto options = cae::get_options();
+options.min_level = cae::Level::Debug;
+options.log_dir = "new_logs";
+cae::update_options(options);
+```
+
+`get_options()` returns a copy. Changing that copy takes effect only after
+calling `update_options()`. When initialized with a config file path, file
+mtime changes are still checked lazily on the next log emission.
+
 推荐验证入口：
 
 ```powershell

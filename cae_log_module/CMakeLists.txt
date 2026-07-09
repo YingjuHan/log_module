@@ -235,6 +235,7 @@ if(CAE_LOGGER_INSTALL_DOCS)
     install(
         DIRECTORY "${CAE_LOGGER_DOXYGEN_HTML_DIR}/"
         DESTINATION "${CMAKE_INSTALL_DOCDIR}/html"
+        OPTIONAL
     )
 endif()
 

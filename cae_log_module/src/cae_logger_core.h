@@ -22,6 +22,8 @@ namespace detail
         static LoggerCore& instance();
 
         void configure(LoggerOptions theOptions);
+        LoggerOptions options() const;
+        void update_options(LoggerOptions theOptions);
         void shutdown();
 
         void set_session(std::string theSessionId);
@@ -87,6 +89,8 @@ namespace detail
         LoggerRuntimeStats collect_runtime_stats(const std::vector<std::shared_ptr<Printer>>& thePrinters) const;
         void               emit_logger_health_snapshot();
         void               reset_runtime_stats_unlocked();
+        void               create_printers_unlocked();
+        void               apply_runtime_options_unlocked(LoggerOptions theOptions);
         void               close_printers_unlocked();
 
       private:

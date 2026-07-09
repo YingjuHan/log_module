@@ -36,6 +36,37 @@ CAE_LOGGER_EXPORT void init(const std::string& theConfigPath = "");
  */
 CAE_LOGGER_EXPORT void init(const LoggerOptions& theOptions);
 
+/**
+ * \brief Loads logger options from an INI-style configuration file.
+ *
+ * The returned options are normalized and can be modified before passing them
+ * to `init(const LoggerOptions&)` or `update_options(const LoggerOptions&)`.
+ *
+ * \param theConfigPath Path to `cae_logger_config.ini`.
+ * \return Parsed and normalized logger options, or defaults when the file
+ * cannot be opened.
+ */
+CAE_LOGGER_EXPORT LoggerOptions load_options_from_file(const std::string& theConfigPath);
+
+/**
+ * \brief Returns a snapshot of the current logger options.
+ *
+ * The returned object is a copy. Modify it as needed, then pass it to
+ * `update_options()` to apply runtime changes.
+ */
+CAE_LOGGER_EXPORT LoggerOptions get_options();
+
+/**
+ * \brief Applies logger options to subsequent log records at runtime.
+ *
+ * Runtime state such as session, sequence numbers, initialization time, and
+ * collected statistics is preserved. Output path or topology changes rebuild
+ * the affected printers before later records are emitted.
+ *
+ * \param theOptions Complete runtime and output configuration.
+ */
+CAE_LOGGER_EXPORT void update_options(const LoggerOptions& theOptions);
+
 //! Sets the logical session or case identifier written to subsequent records.
 CAE_LOGGER_EXPORT void set_session(const std::string& theSessionId);
 
