@@ -280,6 +280,25 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertIn("{\n        cae::TaskScope workflow_scope", main_sample)
         self.assertIn("    }\n    cae::shutdown();", main_sample)
 
+    def test_runtime_scope_submit_verifies_parent_context(self) -> None:
+        runtime_sample = (TEST_ROOT / "sample" / "runtime_scope_submit.cpp").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("string_json_field", runtime_sample)
+        self.assertIn("scope_without_submit_child_has_no_parent", runtime_sample)
+        self.assertIn("scope_with_submit_child_inherits_parent", runtime_sample)
+        self.assertIn('string_json_field(submitted_line, "span_id")', runtime_sample)
+        self.assertIn(
+            'string_json_field(submitted_child_line, "parent_span_id")',
+            runtime_sample,
+        )
+        self.assertIn(
+            'string_json_field(submitted_child_line, "trace_id")',
+            runtime_sample,
+        )
+        self.assertIn('string_json_field(submitted_line, "trace_id")', runtime_sample)
+
 
 if __name__ == "__main__":
     unittest.main()

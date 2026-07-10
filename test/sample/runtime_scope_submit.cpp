@@ -71,6 +71,17 @@ std::string line_containing(const std::string& path, const std::string& needle) 
     return std::string();
 }
 
+std::string string_json_field(const std::string& line, const std::string& key) {
+    const std::string marker = "\"" + key + "\":\"";
+    const std::size_t start = line.find(marker);
+    require_true(start != std::string::npos, "missing JSON string field: " + key);
+
+    const std::size_t value_begin = start + marker.size();
+    const std::size_t value_end = line.find('"', value_begin);
+    require_true(value_end != std::string::npos, "unterminated JSON string field: " + key);
+    return line.substr(value_begin, value_end - value_begin);
+}
+
 std::uint64_t unsigned_json_field(const std::string& line, const std::string& key) {
     const std::string marker = "\"" + key + "\":";
     const std::size_t start = line.find(marker);
@@ -128,6 +139,8 @@ void test_scope_requires_submit_and_keeps_elapsed_time(const std::string& base_d
 
     const std::string skipped_message = "scope_without_submit_should_not_emit";
     const std::string submitted_message = "scope_with_submit_records_elapsed_time";
+    const std::string unsubmitted_child_message = "scope_without_submit_child_has_no_parent";
+    const std::string submitted_child_message = "scope_with_submit_child_inherits_parent";
     const std::string text_log = text_log_path(log_dir, "ScopeSubmit");
     const std::string analysis_log = analysis_log_path(log_dir);
 
@@ -137,16 +150,41 @@ void test_scope_requires_submit_and_keeps_elapsed_time(const std::string& base_d
             .module("ScopeSubmit")
             .message(skipped_message);
         tiny_work();
+        CAE_LOG(Info)
+            .module("ScopeSubmit")
+            .message(unsubmitted_child_message)
+            .submit();
     }
     require_true(!file_contains(text_log, skipped_message),
                  "CAE_LOG_SCOPE without submit should not write when its local block exits");
+    const std::string unsubmitted_child_line =
+        line_containing(analysis_log, unsubmitted_child_message);
+    require_true(!unsubmitted_child_line.empty(),
+                 "event inside an unsubmitted scope should be present in analysis log");
+    require_true(unsubmitted_child_line.find("\"parent_span_id\":null") != std::string::npos,
+                 "event inside an unsubmitted scope should not have a parent span");
 
+    std::string submitted_child_parent_span_id;
+    std::string submitted_child_trace_id;
     {
         CAE_LOG_SCOPE(Info)
             .module("ScopeSubmit")
             .message(submitted_message)
             .submit();
         tiny_work();
+        CAE_LOG(Info)
+            .module("ScopeSubmit")
+            .message(submitted_child_message)
+            .submit();
+        const std::string submitted_child_line =
+            line_containing(analysis_log, submitted_child_message);
+        require_true(!submitted_child_line.empty(),
+                     "event inside a submitted scope should be present in analysis log");
+        submitted_child_parent_span_id =
+            string_json_field(submitted_child_line, "parent_span_id");
+        submitted_child_trace_id = string_json_field(submitted_child_line, "trace_id");
+        require_true(!submitted_child_parent_span_id.empty(),
+                     "event inside a submitted scope should have a parent span");
         require_true(!file_contains(text_log, submitted_message),
                      "CAE_LOG_SCOPE with submit should not write before its local block exits");
         require_true(line_containing(analysis_log, submitted_message).empty(),
@@ -161,6 +199,10 @@ void test_scope_requires_submit_and_keeps_elapsed_time(const std::string& base_d
 
     const std::string submitted_line = line_containing(analysis_log, submitted_message);
     require_true(!submitted_line.empty(), "submitted scope should be present in analysis log");
+    require_true(string_json_field(submitted_line, "span_id") == submitted_child_parent_span_id,
+                 "submitted scope span should be the child event parent");
+    require_true(string_json_field(submitted_line, "trace_id") == submitted_child_trace_id,
+                 "submitted scope and child event should share a trace ID");
     require_true(submitted_line.find("\"event_kind\":\"span\"") != std::string::npos,
                  "submitted scope should be written as a span event");
     require_true(unsigned_json_field(submitted_line, "duration_us") > 0,
