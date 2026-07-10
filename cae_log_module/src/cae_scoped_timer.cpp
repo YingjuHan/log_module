@@ -21,6 +21,7 @@ struct ScopedTimerState
     Level                     level = Level::Info;
     detail::Clock::time_point start = detail::Clock::now();
     bool                      is_active = true;
+    bool                      is_submitted = false;
     bool                      has_scope_context = false;
 };
 
@@ -61,13 +62,12 @@ ScopedTimer::ScopedTimer(std::string theModule, Level theLevel, std::string theM
 //=======================================================================
 ScopedTimer& ScopedTimer::module(const char* theModule)
 {
-    if (!myState || !myState->is_active)
+    if (!myState || !myState->is_active || myState->has_scope_context)
     {
         return *this;
     }
 
     myState->component = theModule != nullptr ? theModule : "";
-    ensure_scope_context();
     return *this;
 }
 
@@ -126,6 +126,27 @@ void ScopedTimer::ensure_scope_context()
 }
 
 //=======================================================================
+// function : ScopedTimer::submit
+// purpose  :
+//=======================================================================
+void ScopedTimer::submit() noexcept
+{
+    if (!myState || !myState->is_active || myState->is_submitted)
+    {
+        return;
+    }
+
+    try
+    {
+        ensure_scope_context();
+        myState->is_submitted = true;
+    }
+    catch (...)
+    {
+    }
+}
+
+//=======================================================================
 // function : ScopedTimer::~ScopedTimer
 // purpose  :
 //=======================================================================
@@ -133,6 +154,14 @@ ScopedTimer::~ScopedTimer() noexcept
 {
     if (!myState || !myState->is_active)
     {
+        return;
+    }
+    if (!myState->is_submitted)
+    {
+        if (myState->has_scope_context)
+        {
+            detail::pop_scope_context(myState->span_id);
+        }
         return;
     }
 

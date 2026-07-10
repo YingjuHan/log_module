@@ -100,12 +100,17 @@ add_executable(runtime_file_flush
     sample/runtime_file_flush.cpp
 )
 
+add_executable(runtime_scope_submit
+    sample/runtime_scope_submit.cpp
+)
+
 setup_sample_target(app_main)
 setup_sample_target(cae_postprocess_demo)
 setup_sample_target(user_document_demo)
 setup_sample_target(qt_emit_macro_compat)
 setup_sample_target(runtime_config_hot_reload)
 setup_sample_target(runtime_file_flush)
+setup_sample_target(runtime_scope_submit)
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
 
@@ -137,6 +142,11 @@ if(BUILD_TESTING)
 
     add_test(NAME runtime_file_flush_smoke COMMAND runtime_file_flush)
     set_tests_properties(runtime_file_flush_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    )
+
+    add_test(NAME runtime_scope_submit_smoke COMMAND runtime_scope_submit)
+    set_tests_properties(runtime_scope_submit_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
 endif()

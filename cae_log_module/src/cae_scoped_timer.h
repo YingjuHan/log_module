@@ -17,8 +17,10 @@ struct ScopedTimerState;
 /**
  * \brief Emits a timed span event for a scoped operation.
  *
- * `ScopedTimer` is intended for local code-block timing. Use `TaskScope` for
- * business workflow spans that need stable stage/action semantics.
+ * `ScopedTimer` is intended for local code-block timing. Call `submit()` after
+ * the chained configuration to write the span when the scope exits. Use
+ * `TaskScope` for business workflow spans that need stable stage/action
+ * semantics.
  */
 class CAE_LOGGER_EXPORT ScopedTimer
 {
@@ -33,7 +35,7 @@ class CAE_LOGGER_EXPORT ScopedTimer
     //! Starts a timer for the specified module and message.
     ScopedTimer(std::string theModule, Level theLevel, std::string theMessage);
 
-    //! Emits the elapsed-time span unless the timer was cancelled.
+    //! Emits the elapsed-time span on scope exit only after `submit()` was called.
     ~ScopedTimer() noexcept;
 
     ScopedTimer(const ScopedTimer&) = delete;
@@ -57,6 +59,9 @@ class CAE_LOGGER_EXPORT ScopedTimer
     {
         return message(fmt::format(theFormat, std::forward<Args>(theArgs)...));
     }
+
+    //! Arms this timer so its elapsed-time span is written when the scope exits.
+    void submit() noexcept;
 
     //! Cancels emission and pops the scope context without writing a span.
     void cancel() noexcept;

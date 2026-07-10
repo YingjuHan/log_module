@@ -123,8 +123,8 @@ CAE_LOGGER_EXPORT void shutdown();
  * \brief Public macro layer for structured events, text events, and RAII spans.
  *
  * The macros create `cae::LogBuilder`, `cae::ScopedTimer`, or
- * `cae::TaskScope` objects. Builder-returning macros do not emit records until
- * the caller finishes the chain with `submit()`.
+ * `cae::TaskScope` objects. Builder and scoped-timer macros do not emit
+ * records until the caller finishes the chain with `submit()`.
  * \{
  */
 
@@ -153,7 +153,7 @@ CAE_LOGGER_EXPORT void shutdown();
 #define CAE_LOG_DETAIL_CONCAT_INNER(lhs, rhs) lhs##rhs
 #define CAE_LOG_DETAIL_CONCAT(lhs, rhs)       CAE_LOG_DETAIL_CONCAT_INNER(lhs, rhs)
 
-//! Creates a scoped timer and exposes it for chained configuration.
+//! Creates a scoped timer; call `.submit()` after chained configuration.
 #define CAE_LOG_SCOPE(level)                                                              \
     cae::ScopedTimer CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)(cae::Level::level); \
     CAE_LOG_DETAIL_CONCAT(cae_log_scope_, __LINE__)

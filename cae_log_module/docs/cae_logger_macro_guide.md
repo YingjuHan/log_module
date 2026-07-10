@@ -24,7 +24,7 @@
 | `CAE_LOG_WARN_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`WARN` | 可恢复异常且需要体现耗时 | 替代结构化 `WARN` 告警 |
 | `CAE_LOG_ERROR_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`ERROR` | 失败动作且已有耗时值 | 只写错误句子、不写失败原因 |
 | `CAE_LOG_CRITICAL_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`CRITICAL` | 全局致命故障且需记录耗时 | 日常异常 |
-| `CAE_LOG_SCOPE(level)` | `level`，再通过 `.module(...).message(...)` 链式配置 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
+| `CAE_LOG_SCOPE(level)` | `level`，再通过 `.module(...).message(...).submit()` 链式配置 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)` | `level`, `module`, `stage`, 可选 `action/trace_id` | 真实业务生命周期 `span` | 几何导入、网格生成、求解循环、导出任务 | 只是一条瞬时状态变更 |
 
 说明：
@@ -218,7 +218,7 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 意义：
 
 - 创建一个 `ScopedTimer`
-- 进入当前作用域开始计时，离开作用域时自动结束
+- 进入当前作用域开始计时，调用 `.submit()` 后离开作用域时自动结束并写出
 - 面向“这段代码花了多久”
 
 参数：
@@ -226,6 +226,7 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 - `level`
 - `.module(...)`：模块名
 - `.message(...)`：消息文本，支持 `fmt` 风格格式化参数
+- `.submit()`：确认该 scope 需要在退出作用域时写出
 
 示例：
 
@@ -233,7 +234,8 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 void export_result() {
     CAE_LOG_SCOPE(Info)
         .module("PostProcess.Output")
-        .message("Exporting result file");
+        .message("Exporting result file")
+        .submit();
     // ...
 }
 ```
@@ -299,17 +301,17 @@ CAE_SCOPE_TASK(Info, "Solver", "Iteration", "child_stage", trace_id);
 
 包含：
 
-- `CAE_LOG_SCOPE(Trace).module(module).message(...)`
-- `CAE_LOG_SCOPE(Debug).module(module).message(...)`
-- `CAE_LOG_SCOPE(Info).module(module).message(...)`
-- `CAE_LOG_SCOPE(Warn).module(module).message(...)`
-- `CAE_LOG_SCOPE(Error).module(module).message(...)`
-- `CAE_LOG_SCOPE(Critical).module(module).message(...)`
+- `CAE_LOG_SCOPE(Trace).module(module).message(...).submit()`
+- `CAE_LOG_SCOPE(Debug).module(module).message(...).submit()`
+- `CAE_LOG_SCOPE(Info).module(module).message(...).submit()`
+- `CAE_LOG_SCOPE(Warn).module(module).message(...).submit()`
+- `CAE_LOG_SCOPE(Error).module(module).message(...).submit()`
+- `CAE_LOG_SCOPE(Critical).module(module).message(...).submit()`
 
 意义：
 
 - 显式写出 `level`
-- 保持作用域自动计时语义不变
+- 调用 `.submit()` 后保持作用域自动计时语义
 
 示例：
 
@@ -317,7 +319,8 @@ CAE_SCOPE_TASK(Info, "Solver", "Iteration", "child_stage", trace_id);
 void rebuild_cache() {
     CAE_LOG_SCOPE(Info)
         .module("System")
-        .message("Rebuilding cache");
+        .message("Rebuilding cache")
+        .submit();
 }
 ```
 
@@ -336,7 +339,7 @@ void rebuild_cache() {
 
 - 要被分析工具稳定消费：`CAE_LOG(level)`
 - 要表达真实业务生命周期：`CAE_SCOPE_TASK(...)`
-- 要做局部代码块自动计时：`CAE_LOG_SCOPE(level).module(...).message(...)`
+- 要做局部代码块自动计时：`CAE_LOG_SCOPE(level).module(...).message(...).submit()`
 - 已经有真实耗时值：`CAE_LOG_*_DUR`
 - 只补一句简短文本：`CAE_LOG(level).module(...)`
 
@@ -366,7 +369,7 @@ void rebuild_cache() {
 
 - 用 `CAE_LOG(Info).module(...)` 代替结构化 `CAE_LOG(Info)...submit()`
 - 用 `CAE_LOG_*_DUR` 伪造耗时
-- 用 `CAE_LOG_SCOPE(Info).module(...).message(...)` 替代真实业务任务 `span`
+- 用 `CAE_LOG_SCOPE(Info).module(...).message(...).submit()` 替代真实业务任务 `span`
 - 在高频路径长期使用 `TRACE/DEBUG`
 - 把核心业务字段只写进 `message`
 

@@ -235,7 +235,7 @@ call_chain_skip=0
 | `CAE_LOG(level)`                                            | `level`                                  | 必须是 `Trace/Debug/Info/Warn/Error/Critical` 这样的枚举标识符片段，不能传运行时变量。 |
 | `CAE_LOG(level).module(module)`                             | `level`、`module`                         | 返回链式 builder；消息通过 `.message(...).submit()` 写出。        |
 | `CAE_LOG_*_DUR(module, duration_us)`                   | `module`、`duration_us` | 返回带顶层 `duration_us` 的链式 builder，消息通过 `.message(...).submit()` 写出。 |
-| `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；通过 `.module(...).message(...)` 链式配置，退出作用域时写日志。 |
+| `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；通过 `.module(...).message(...).submit()` 链式配置，退出作用域时写日志。 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)`                 | `level`、`module`、`stage`                 | action 和 trace_id 选填。                                           |
 | `cae::TaskScope(module, stage, level, ...)`                 | `module`、`stage`                         | action 和 trace_id 选填。                                           |
 | `cae::ScopedTimer(module, level, message)`                  | `module`、`level`、`message`               | 创建简易计时 scope。                                                   |
@@ -642,13 +642,14 @@ CAE_LOG_CRITICAL_DUR("System", shutdown_us)
 
 ### 8.5 `CAE_LOG_SCOPE(level)`
 
-用途：在当前 C++ 作用域创建 RAII 计时器，作用域退出时自动写入 span。
+用途：在当前 C++ 作用域创建 RAII 计时器，调用 `.submit()` 后在作用域退出时写入 span。
 
 ```cpp
 void run_mesher() {
     CAE_LOG_SCOPE(Info)
         .module("Mesh")
-        .message("Volume mesh generation completed.");
+        .message("Volume mesh generation completed.")
+        .submit();
     generate_volume_mesh();
 }
 ```
@@ -656,17 +657,17 @@ void run_mesher() {
 支持：
 
 ```cpp
-CAE_LOG_SCOPE(Trace).module(module).message(...)
-CAE_LOG_SCOPE(Debug).module(module).message(...)
-CAE_LOG_SCOPE(Info).module(module).message(...)
-CAE_LOG_SCOPE(Warn).module(module).message(...)
-CAE_LOG_SCOPE(Error).module(module).message(...)
-CAE_LOG_SCOPE(Critical).module(module).message(...)
+CAE_LOG_SCOPE(Trace).module(module).message(...).submit()
+CAE_LOG_SCOPE(Debug).module(module).message(...).submit()
+CAE_LOG_SCOPE(Info).module(module).message(...).submit()
+CAE_LOG_SCOPE(Warn).module(module).message(...).submit()
+CAE_LOG_SCOPE(Error).module(module).message(...).submit()
+CAE_LOG_SCOPE(Critical).module(module).message(...).submit()
 ```
 
 限制：
 
-* 退出作用域才写日志。
+* 只有调用 `.submit()` 后，退出作用域才写日志。
 * stage 从 module 派生。
 * action 固定为 `timed_scope`。
 * message 由调用方提供。
@@ -678,23 +679,23 @@ CAE_LOG_SCOPE(Critical).module(module).message(...)
 完整宏列表：
 
 ```cpp
-CAE_LOG_SCOPE(Trace).module(module).message(...)
-CAE_LOG_SCOPE(Debug).module(module).message(...)
-CAE_LOG_SCOPE(Info).module(module).message(...)
-CAE_LOG_SCOPE(Warn).module(module).message(...)
-CAE_LOG_SCOPE(Error).module(module).message(...)
-CAE_LOG_SCOPE(Critical).module(module).message(...)
+CAE_LOG_SCOPE(Trace).module(module).message(...).submit()
+CAE_LOG_SCOPE(Debug).module(module).message(...).submit()
+CAE_LOG_SCOPE(Info).module(module).message(...).submit()
+CAE_LOG_SCOPE(Warn).module(module).message(...).submit()
+CAE_LOG_SCOPE(Error).module(module).message(...).submit()
+CAE_LOG_SCOPE(Critical).module(module).message(...).submit()
 ```
 
 示例：
 
 ```cpp
-CAE_LOG_SCOPE(Trace).module("Solver.Kernel").message("Kernel interpolation completed.");
-CAE_LOG_SCOPE(Debug).module("Mesh.Partition").message("Partition exchange completed.");
-CAE_LOG_SCOPE(Info).module("Geometry").message("Geometry healing completed.");
-CAE_LOG_SCOPE(Warn).module("Mesh").message("Mesh local repair completed with degraded quality.");
-CAE_LOG_SCOPE(Error).module("PostProcess.Output").message("Export failed.");
-CAE_LOG_SCOPE(Critical).module("System").message("Crash recovery scope completed.");
+CAE_LOG_SCOPE(Trace).module("Solver.Kernel").message("Kernel interpolation completed.").submit();
+CAE_LOG_SCOPE(Debug).module("Mesh.Partition").message("Partition exchange completed.").submit();
+CAE_LOG_SCOPE(Info).module("Geometry").message("Geometry healing completed.").submit();
+CAE_LOG_SCOPE(Warn).module("Mesh").message("Mesh local repair completed with degraded quality.").submit();
+CAE_LOG_SCOPE(Error).module("PostProcess.Output").message("Export failed.").submit();
+CAE_LOG_SCOPE(Critical).module("System").message("Crash recovery scope completed.").submit();
 ```
 
 ### 8.7 `CAE_SCOPE_TASK(level, module, stage, ...)`

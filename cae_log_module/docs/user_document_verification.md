@@ -55,7 +55,7 @@ popd
 
 1. `TaskScope` 默认 `action` 是 `scope`。
 2. `ScopedTimer` 默认 `action` 是 `timed_scope`。
-3. `TaskScope`/`ScopedTimer` 自然析构会自动写入 `result="completed"` 的 `span`。
+3. `TaskScope` 自然析构会自动写入 `result="completed"` 的 `span`；`ScopedTimer` 需要先调用 `.submit()`，再由析构写入 span。
 4. `cancel()` 会阻止上述自动 completed span 落盘。
 5. `ProcessModel::MultiProcess` 会把 JSONL 输出到 `cae_events_pidID.jsonl`，而不是固定的 `cae_events.jsonl`。
 6. 未设置 `thread_name` 时默认 `tid:ID`。

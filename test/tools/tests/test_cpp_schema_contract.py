@@ -93,6 +93,7 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertIn("explicit ScopedTimer(Level theLevel);", scoped_timer)
         self.assertIn("ScopedTimer& module(const char* theModule);", scoped_timer)
         self.assertIn("ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)", scoped_timer)
+        self.assertIn("void submit() noexcept;", scoped_timer)
 
     def test_schema_header_is_installed_by_cmake(self) -> None:
         schema_header = MODULE_ROOT / "src" / "cae_event_schema.h"

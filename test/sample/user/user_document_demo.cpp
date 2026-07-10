@@ -119,19 +119,22 @@ void emit_scope_examples() {
     {
         CAE_LOG_SCOPE(Info)
             .module("Mesh")
-            .message("Volume mesh generation completed.");
+            .message("Volume mesh generation completed.")
+            .submit();
         tiny_work();
     }
 
     {
         CAE_LOG_SCOPE(Info)
             .module("Geometry")
-            .message("{} healing completed.", "Geometry");
+            .message("{} healing completed.", "Geometry")
+            .submit();
         tiny_work();
     }
 
     {
         cae::ScopedTimer timer("PostProcess.Reader", cae::Level::Info, "Reader open scope completed.");
+        timer.submit();
         tiny_work();
     }
 }
