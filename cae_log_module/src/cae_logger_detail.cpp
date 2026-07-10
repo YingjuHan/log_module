@@ -955,6 +955,10 @@ namespace detail
             {
                 anOptions.flush_level = parse_level(aValue, anOptions.flush_level);
             }
+            else if (aKey == "flush_each_record" || aKey == "immediate_flush" || aKey == "write_through_files")
+            {
+                anOptions.flush_each_record = parse_bool(aValue, anOptions.flush_each_record);
+            }
             else if (aKey == "enable_call_chain_analysis" || aKey == "call_chain_analysis"
                      || aKey == "enable_stacktrace")
             {

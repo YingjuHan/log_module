@@ -80,6 +80,7 @@ int main() {
 
     options.min_level = cae::Level::Info;
     options.flush_level = cae::Level::Error;
+    options.flush_each_record = true;
 
     options.log_dir = "logs";
     options.analysis_log_name = "cae_events.jsonl";
@@ -179,6 +180,7 @@ enable_analysis_log=true
 
 min_level=info
 flush_level=error
+flush_each_record=true
 
 log_dir=logs
 analysis_log_name=cae_events.jsonl
@@ -207,6 +209,7 @@ call_chain_skip=0
 | `enable_analysis_log`        | bool                                       | `true`             | 是否输出 JSONL 分析日志。生产分析链路必须开启。 |
 | `min_level`                  | `trace/debug/info/warn/error/critical`     | 生产建议 `info`        | 低于该等级的日志不输出。                |
 | `flush_level`                | 同上                                         | `error`            | 达到该等级触发 flush。              |
+| `flush_each_record`          | bool                                       | `true`             | 每条已接收的文件日志写完立即 flush，调试中强制终止进程时也能读到最近日志；吞吐敏感且保证正常 `shutdown()` 时可设为 `false`。 |
 | `log_dir`                    | string                                     | `logs`             | 日志目录。                       |
 | `analysis_log_name`          | string                                     | `cae_events.jsonl` | JSONL 分析日志文件名。              |
 | `global_pattern`             | spdlog pattern                             | 默认即可               | 只影响文本/控制台，不影响 JSONL 字段。     |
@@ -1201,6 +1204,7 @@ CAE_LOG(Error)
 6. ERROR 及以上应保留可操作原因和必要上下文。
 7. 多进程写日志时使用 `ProcessModel::MultiProcess`，避免多个进程写同一文件。
 8. `flush_level` 不建议低于 `Error`，否则高频日志可能显著影响性能。
+9. `flush_each_record=true` 适合调试和需要实时 tail 日志的集成场景；吞吐敏感任务可关闭，但必须在正常退出时调用 `cae::shutdown()`。
 
 ---
 

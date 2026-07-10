@@ -22,7 +22,13 @@ namespace detail
     //=======================================================================
     void TextFilePrinter::write(const LogRecord& theRecord)
     {
-        get_or_create(theRecord.component)->log(to_spdlog_level(theRecord.level), format_log_message(theRecord));
+        std::shared_ptr<spdlog::logger> aLogger = get_or_create(theRecord.component);
+        aLogger->log(to_spdlog_level(theRecord.level), format_log_message(theRecord));
+
+        if (should_flush_each_record())
+        {
+            aLogger->flush();
+        }
     }
 
     //=======================================================================
@@ -88,7 +94,7 @@ namespace detail
         }
 
         std::shared_ptr<spdlog::logger> aLogger;
-        if (myOptions.io_mode == IOMode::Async)
+        if (myOptions.io_mode == IOMode::Async && !myOptions.flush_each_record)
         {
             aLogger = std::make_shared<spdlog::async_logger>(aLoggerName,
                                                              aSink,
@@ -116,6 +122,16 @@ namespace detail
                                         ? fmt::format("{}_pid{}.log", theModule, current_pid())
                                         : fmt::format("{}.log", theModule);
         return fs::path(myOptions.log_dir) / aFileName;
+    }
+
+    //=======================================================================
+    // function : TextFilePrinter::should_flush_each_record
+    // purpose  :
+    //=======================================================================
+    bool TextFilePrinter::should_flush_each_record() const
+    {
+        std::lock_guard<std::mutex> aLock(myMutex);
+        return myOptions.flush_each_record;
     }
 
 } // namespace detail

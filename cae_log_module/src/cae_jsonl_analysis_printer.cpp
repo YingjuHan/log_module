@@ -108,7 +108,8 @@ namespace detail
         myBufferedBytes += aLine.size();
         myCurrentSegmentBytes += aLine.size();
         myAnalysisBytesWritten += aLine.size();
-        if (theRecord.level >= Level::Error || myBufferedBytes >= kFlushThresholdBytes)
+        if (myOptions.flush_each_record || theRecord.level >= myOptions.flush_level
+            || myBufferedBytes >= kFlushThresholdBytes)
         {
             flush_unlocked();
         }

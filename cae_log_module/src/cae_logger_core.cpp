@@ -27,6 +27,7 @@ namespace detail
                 || theCurrent.async_queue_size != theNext.async_queue_size
                 || theCurrent.async_thread_count != theNext.async_thread_count
                 || theCurrent.async_overflow_policy != theNext.async_overflow_policy
+                || theCurrent.flush_each_record != theNext.flush_each_record
                 || theCurrent.log_dir != theNext.log_dir
                 || theCurrent.analysis_log_name != theNext.analysis_log_name;
         }
@@ -601,6 +602,7 @@ namespace detail
                            {"async_thread_count", metric_counter(anOptionsSnapshot.async_thread_count)},
                            {"async_overflow_policy",
                             std::string(async_overflow_policy_to_string(anOptionsSnapshot.async_overflow_policy))},
+                           {"flush_each_record", anOptionsSnapshot.flush_each_record},
                            {"enable_lossy_drop_policy", anOptionsSnapshot.enable_lossy_drop_policy},
                            {"lossy_drop_below_level",
                             std::string(level_to_string(anOptionsSnapshot.lossy_drop_below_level))}};

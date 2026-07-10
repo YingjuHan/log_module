@@ -21,6 +21,7 @@ class ValidateCaeConfigTests(unittest.TestCase):
 
         self.assertTrue(report["valid"], report["errors"])
         self.assertIn("logger_health_interval_events", report["hot_reload_keys"])
+        self.assertIn("flush_each_record", report["hot_reload_keys"])
         self.assertIn("async_queue_size", report["startup_only_keys"])
 
     def test_rejects_unknown_keys_bad_numbers_and_invalid_sampling_rate(self) -> None:

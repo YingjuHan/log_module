@@ -29,11 +29,12 @@ namespace detail
 
         std::shared_ptr<spdlog::logger> get_or_create(const std::string& theModule);
         fs::path                        module_log_path(const std::string& theModule) const;
+        bool                            should_flush_each_record() const;
 
       private:
 
         LoggerOptions                                          myOptions;
-        std::mutex                                             myMutex;
+        mutable std::mutex                                     myMutex;
         std::map<std::string, std::shared_ptr<spdlog::logger>> myLoggers;
     };
 

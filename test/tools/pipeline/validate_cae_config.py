@@ -22,6 +22,9 @@ BOOL_KEYS = {
     "enable_stacktrace",
     "enable_lossy_drop_policy",
     "lossy_drop_policy",
+    "flush_each_record",
+    "immediate_flush",
+    "write_through_files",
 }
 
 SIZE_KEYS = {
@@ -89,6 +92,9 @@ HOT_RELOAD_KEYS = {
     "analysis_log_retention_files",
     "logger_health_interval_events",
     "job_id",
+    "flush_each_record",
+    "immediate_flush",
+    "write_through_files",
 }
 
 STARTUP_ONLY_KEYS = ALLOWED_KEYS - HOT_RELOAD_KEYS

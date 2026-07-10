@@ -200,6 +200,8 @@ struct CAE_LOGGER_EXPORT LoggerOptions
     Level min_level = Level::Trace;
     //! Severity level that triggers flush behavior.
     Level flush_level = Level::Error;
+    //! Flushes file outputs after every accepted record for crash/debug visibility.
+    bool flush_each_record = true;
 
     //! Directory where log files are written.
     std::string log_dir = "logs";

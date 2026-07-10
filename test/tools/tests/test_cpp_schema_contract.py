@@ -211,11 +211,13 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertIn("logger_health_interval_events = 1000", header)
         self.assertIn("enable_lossy_drop_policy = false", header)
         self.assertIn("lossy_drop_below_level = Level::Trace", header)
+        self.assertIn("flush_each_record = true", header)
         self.assertIn('aKey == "analysis_log_max_bytes"', implementation)
         self.assertIn('aKey == "analysis_log_retention_files"', implementation)
         self.assertIn('aKey == "logger_health_interval_events"', implementation)
         self.assertIn('aKey == "enable_lossy_drop_policy"', implementation)
         self.assertIn('aKey == "lossy_drop_below_level"', implementation)
+        self.assertIn('aKey == "flush_each_record"', implementation)
         self.assertIn("health_snapshot", implementation)
         self.assertIn("analysis_segments_created", implementation)
         self.assertIn("records_dropped", implementation)
@@ -224,6 +226,15 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertIn("logger_health_interval_events = 1000", config)
         self.assertIn("enable_lossy_drop_policy = false", config)
         self.assertIn("lossy_drop_below_level = trace", config)
+        self.assertIn("flush_each_record = true", config)
+
+    def test_file_outputs_flush_each_record_by_default(self) -> None:
+        text_printer = (MODULE_ROOT / "src" / "cae_text_file_printer.cpp").read_text(encoding="utf-8")
+        analysis_printer = (MODULE_ROOT / "src" / "cae_jsonl_analysis_printer.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("&& !myOptions.flush_each_record", text_printer)
+        self.assertIn("should_flush_each_record()", text_printer)
+        self.assertIn("myOptions.flush_each_record ||", analysis_printer)
 
     def test_rotation_logic_scans_existing_segments_and_uses_next_unused_index(self) -> None:
         implementation = (
