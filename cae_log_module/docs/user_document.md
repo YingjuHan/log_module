@@ -238,7 +238,7 @@ call_chain_skip=0
 | `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；通过 `.module(...).message(...).submit()` 链式配置，退出作用域时写日志。 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)`                 | `level`、`module`、`stage`                 | action 和 trace_id 选填。                                           |
 | `cae::TaskScope(module, stage, level, ...)`                 | `module`、`stage`                         | action 和 trace_id 选填。                                           |
-| `cae::ScopedTimer(module, level, message)`                  | `module`、`level`、`message`               | 创建简易计时 scope。                                                   |
+| `cae::ScopedTimer(module, level, message)`                  | `module`、`level`、`message`               | 创建简易计时 scope；必须显式调用 `timer.submit()` 后才会在退出作用域时写出。          |
 
 ### 5.2 业务规范必填
 
@@ -651,6 +651,19 @@ void run_mesher() {
         .message("Volume mesh generation completed.")
         .submit();
     generate_volume_mesh();
+}
+```
+
+直接构造同样必须显式调用 `submit()`：
+
+```cpp
+void open_reader() {
+    cae::ScopedTimer timer(
+        "PostProcess.Reader",
+        cae::Level::Info,
+        "Reader open scope completed.");
+    timer.submit();
+    open_result_reader();
 }
 ```
 

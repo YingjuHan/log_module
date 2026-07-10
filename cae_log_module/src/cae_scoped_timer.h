@@ -29,10 +29,10 @@ class CAE_LOGGER_EXPORT ScopedTimer
     //! Starts a timer at the specified level and configures it through chained setters.
     explicit ScopedTimer(Level theLevel);
 
-    //! Starts a timer for the specified module and message.
+    //! Starts a timer for the specified module and message; call `submit()` to arm it.
     ScopedTimer(const char* theModule, Level theLevel, std::string theMessage);
 
-    //! Starts a timer for the specified module and message.
+    //! Starts a timer for the specified module and message; call `submit()` to arm it.
     ScopedTimer(std::string theModule, Level theLevel, std::string theMessage);
 
     //! Emits the elapsed-time span on scope exit only after `submit()` was called.

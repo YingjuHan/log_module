@@ -45,6 +45,16 @@ class CaeLoggerDocsInstallContractTests(unittest.TestCase):
         self.assertIn("USE_MDFILE_AS_MAINPAGE", text)
         self.assertIn("GENERATE_HTML", text)
 
+    def test_scoped_timer_direct_construction_documents_submit(self) -> None:
+        document = (MODULE_ROOT / "docs" / "user_document.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("cae::ScopedTimer timer(", document)
+        self.assertIn('"PostProcess.Reader",', document)
+        self.assertIn("timer.submit();", document)
+        self.assertIn("直接构造同样必须显式调用", document)
+
     def test_install_rules_publish_html_only_and_test_source_project(self) -> None:
         cmake = (MODULE_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
 
