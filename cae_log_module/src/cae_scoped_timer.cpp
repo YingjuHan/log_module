@@ -4,6 +4,7 @@
 #include "cae_logger_detail.h"
 
 #include <chrono>
+#include <type_traits>
 #include <utility>
 
 namespace cae
@@ -24,6 +25,38 @@ struct ScopedTimerState
     bool                      is_submitted = false;
     bool                      has_scope_context = false;
 };
+
+namespace
+{
+    class ScopeContextRollback
+    {
+    public:
+        explicit ScopeContextRollback(const std::string& theSpanId) noexcept
+        : mySpanId(theSpanId)
+        {
+        }
+
+        ~ScopeContextRollback() noexcept
+        {
+            if (myIsActive)
+            {
+                detail::pop_scope_context(mySpanId);
+            }
+        }
+
+        void release() noexcept
+        {
+            myIsActive = false;
+        }
+
+    private:
+        const std::string& mySpanId;
+        bool               myIsActive = true;
+    };
+
+    static_assert(std::is_nothrow_move_constructible<detail::ScopeSeed>::value,
+                  "ScopeSeed must be nothrow movable after its context is pushed");
+} // namespace
 
 //=======================================================================
 // function : ScopedTimer::ScopedTimer
@@ -113,9 +146,10 @@ void ScopedTimer::ensure_scope_context()
         return;
     }
 
-    const std::string       aModule = !myState->component.empty() ? myState->component : "default";
-    const detail::ScopeSeed aSeed =
+    const std::string aModule = !myState->component.empty() ? myState->component : "default";
+    detail::ScopeSeed aSeed =
         detail::push_scope_context(aModule, detail::derive_stage_from_component(aModule), "timed_scope", "");
+    ScopeContextRollback aRollback(aSeed.span_id);
     myState->component = aSeed.component;
     myState->stage = aSeed.stage;
     myState->action = aSeed.action;
@@ -123,6 +157,7 @@ void ScopedTimer::ensure_scope_context()
     myState->span_id = aSeed.span_id;
     myState->parent_span_id = aSeed.parent_span_id;
     myState->has_scope_context = true;
+    aRollback.release();
 }
 
 //=======================================================================

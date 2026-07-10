@@ -95,6 +95,14 @@ class CppSchemaContractTests(unittest.TestCase):
         self.assertIn("ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)", scoped_timer)
         self.assertIn("void submit() noexcept;", scoped_timer)
 
+    def test_scoped_timer_context_setup_has_rollback_guard(self) -> None:
+        scoped_timer = (MODULE_ROOT / "src" / "cae_scoped_timer.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("class ScopeContextRollback", scoped_timer)
+        self.assertIn("detail::pop_scope_context(mySpanId);", scoped_timer)
+        self.assertIn("ScopeContextRollback aRollback(aSeed.span_id);", scoped_timer)
+        self.assertIn("aRollback.release();", scoped_timer)
+
     def test_schema_header_is_installed_by_cmake(self) -> None:
         schema_header = MODULE_ROOT / "src" / "cae_event_schema.h"
         cmake = (MODULE_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
