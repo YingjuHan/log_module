@@ -50,3 +50,4 @@ goaccess/thirdparty/gettext/.git
 goaccess/thirdparty/zlib/.git
 goaccess/thirdparty/PDCurses/.git
 .DS_Store
+.worktrees/
