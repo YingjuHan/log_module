@@ -76,8 +76,8 @@ ScopedTimer::ScopedTimer(Level theLevel)
 ScopedTimer::ScopedTimer(const char* theModule, Level theLevel, std::string theMessage)
 : ScopedTimer(theLevel)
 {
-    message(std::move(theMessage));
-    module(theModule);
+    myState->message = std::move(theMessage);
+    myState->component = theModule != nullptr ? theModule : "";
 }
 
 //=======================================================================
@@ -85,8 +85,10 @@ ScopedTimer::ScopedTimer(const char* theModule, Level theLevel, std::string theM
 // purpose  :
 //=======================================================================
 ScopedTimer::ScopedTimer(std::string theModule, Level theLevel, std::string theMessage)
-: ScopedTimer(theModule.c_str(), theLevel, std::move(theMessage))
+: ScopedTimer(theLevel)
 {
+    myState->message = std::move(theMessage);
+    myState->component = std::move(theModule);
 }
 
 //=======================================================================

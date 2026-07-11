@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -183,7 +184,18 @@ namespace detail
     {
         try
         {
-            const auto aParsed = std::stoull(trim(theValue));
+            const std::string aTrimmed = trim(theValue);
+            if (aTrimmed.empty() || aTrimmed[0] == '-')
+            {
+                return theDefaultValue;
+            }
+
+            std::size_t       aParsedLength = 0;
+            const auto        aParsed = std::stoull(aTrimmed, &aParsedLength);
+            if (aParsedLength != aTrimmed.size())
+            {
+                return theDefaultValue;
+            }
             if (aParsed > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max()))
             {
                 return theDefaultValue;
@@ -316,7 +328,15 @@ namespace detail
     {
         try
         {
-            return std::stod(trim(theValue));
+            const std::string aTrimmed = trim(theValue);
+            std::size_t       aParsedLength = 0;
+            const double      aParsed = std::stod(aTrimmed, &aParsedLength);
+            if (aParsedLength != aTrimmed.size() || !std::isfinite(aParsed))
+            {
+                return theDefaultValue;
+            }
+
+            return aParsed;
         }
         catch (...)
         {
@@ -1037,7 +1057,19 @@ namespace detail
             case MetricValueType::Boolean: return theValue.bool_value() ? "true" : "false";
             case MetricValueType::Integer: return std::to_string(theValue.integer_value());
             case MetricValueType::Double:
-            default: return fmt::format("{}", theValue.double_value());
+            default:
+            {
+                const double aDoubleValue = theValue.double_value();
+                if (std::isnan(aDoubleValue))
+                {
+                    return "\"nan\"";
+                }
+                if (std::isinf(aDoubleValue))
+                {
+                    return std::signbit(aDoubleValue) ? "\"-inf\"" : "\"inf\"";
+                }
+                return fmt::format("{}", aDoubleValue);
+            }
         }
     }
 

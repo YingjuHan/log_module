@@ -292,13 +292,13 @@ namespace detail
     void JsonlAnalysisPrinter::open_segment_unlocked(std::size_t theSegmentIndex, bool theTruncate)
     {
         mySegmentIndex = theSegmentIndex;
-        myPath = segment_path(mySegmentIndex);
+        const fs::path aPath = segment_path(mySegmentIndex);
         std::error_code anExistsError;
-        const bool      hasExisted = fs::exists(myPath, anExistsError);
+        const bool      hasExisted = fs::exists(aPath, anExistsError);
         const auto      anOpenMode = theTruncate ? (std::ios::out | std::ios::trunc) : (std::ios::out | std::ios::app);
 
         myOut.clear();
-        myOut.open(myPath.c_str(), anOpenMode);
+        myOut.open(aPath.c_str(), anOpenMode);
         myBufferedBytes = 0;
         myCurrentSegmentBytes = 0;
         if (!myOut.is_open())
@@ -307,7 +307,7 @@ namespace detail
         }
 
         std::error_code aSizeError;
-        const std::uint64_t aSize = fs::file_size(myPath, aSizeError);
+        const std::uint64_t aSize = fs::file_size(aPath, aSizeError);
         if (!aSizeError)
         {
             myCurrentSegmentBytes = static_cast<std::uint64_t>(aSize);

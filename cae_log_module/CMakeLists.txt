@@ -212,11 +212,14 @@ install(
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-file(GLOB CAE_LOGGER_PUBLIC_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_*.h"
-)
-list(SORT CAE_LOGGER_PUBLIC_HEADERS)
-list(APPEND CAE_LOGGER_PUBLIC_HEADERS
+set(CAE_LOGGER_PUBLIC_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_compat.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_event_schema.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_log_builder.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_logger.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_logger_types.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_scoped_timer.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cae_task_scope.h"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/cae_logger_export.h"
 )
 

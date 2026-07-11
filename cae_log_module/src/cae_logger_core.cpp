@@ -284,11 +284,6 @@ namespace detail
             aConfigPath = myConfigPath;
         }
 
-        if (aConfigPath.empty())
-        {
-            return;
-        }
-
         std::error_code anError;
         const fs::FileTime aCurrentWriteTime = fs::last_write_time(fs::path(aConfigPath), anError);
         if (anError)
@@ -443,11 +438,7 @@ namespace detail
                                                      aRecord.mpi_rank.has_value() ? std::to_string(*aRecord.mpi_rank)
                                                                                   : "na",
                                                      aRecord.sequence);
-            aPrinters.reserve(myPrinters.size());
-            for (const auto& aPrinter : myPrinters)
-            {
-                aPrinters.push_back(aPrinter);
-            }
+            aPrinters = myPrinters;
         }
 
         const bool toCaptureCallChain = anOptionsSnapshot.enable_call_chain_analysis
@@ -537,11 +528,7 @@ namespace detail
             aSession = mySessionId.empty() ? "Single" : mySessionId;
             aJobId = myJobId.empty() ? aSession : myJobId;
             anInitTime = myInitTime;
-            aPrinters.reserve(myPrinters.size());
-            for (const auto& aPrinter : myPrinters)
-            {
-                aPrinters.push_back(aPrinter);
-            }
+            aPrinters = myPrinters;
         }
 
         const auto         aTotalRecords = myRecordsEmitted.fetch_add(1, std::memory_order_relaxed) + 1;

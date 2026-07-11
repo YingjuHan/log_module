@@ -46,7 +46,6 @@ namespace detail
 
         LoggerOptions      myOptions;
         fs::path           myBasePath;
-        fs::path           myPath;
         mutable std::mutex myMutex;
         std::ofstream      myOut;
         std::size_t        myBufferedBytes = 0;

@@ -55,14 +55,22 @@ TaskScope::TaskScope(const char* theModule,
                                                                theStage != nullptr ? theStage : "",
                                                                theAction,
                                                                theTraceId);
-    myState->component = aSeed.component;
-    myState->stage = aSeed.stage;
-    myState->action = aSeed.action;
-    myState->trace_id = aSeed.trace_id;
-    myState->span_id = aSeed.span_id;
-    myState->parent_span_id = aSeed.parent_span_id;
-    myState->level = theLevel;
-    myState->start = detail::Clock::now();
+    try
+    {
+        myState->component = aSeed.component;
+        myState->stage = aSeed.stage;
+        myState->action = aSeed.action;
+        myState->trace_id = aSeed.trace_id;
+        myState->span_id = aSeed.span_id;
+        myState->parent_span_id = aSeed.parent_span_id;
+        myState->level = theLevel;
+        myState->start = detail::Clock::now();
+    }
+    catch (...)
+    {
+        detail::pop_scope_context(aSeed.span_id);
+        throw;
+    }
 }
 
 //=======================================================================
