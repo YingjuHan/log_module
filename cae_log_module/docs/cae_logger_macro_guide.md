@@ -24,7 +24,7 @@
 | `CAE_LOG_WARN_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`WARN` | 可恢复异常且需要体现耗时 | 替代结构化 `WARN` 告警 |
 | `CAE_LOG_ERROR_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`ERROR` | 失败动作且已有耗时值 | 只写错误句子、不写失败原因 |
 | `CAE_LOG_CRITICAL_DUR(module, duration_us)` | 同上 | 带真实耗时的链式文本事件，`CRITICAL` | 全局致命故障且需记录耗时 | 日常异常 |
-| `CAE_LOG_SCOPE(level)` | `level`，再通过 `.module(...).message(...).submit()` 链式配置 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
+| `CAE_LOG_SCOPE(level)` | `level`，再通过 `.module(...).message(...).submit()` 链式配置；遗漏 `.submit()` 会编译失败 | 局部代码块自动计时 | 函数/局部作用域耗时统计 | 真实业务 workflow/span 主入口 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)` | `level`, `module`, `stage`, 可选 `action/trace_id` | 真实业务生命周期 `span` | 几何导入、网格生成、求解循环、导出任务 | 只是一条瞬时状态变更 |
 
 说明：
@@ -218,7 +218,7 @@ CAE_LOG_WARN_DUR("PostProcess.Import", import_us)
 意义：
 
 - 创建一个 `ScopedTimer`
-- 进入当前作用域开始计时，调用 `.submit()` 后离开作用域时自动结束并写出
+- 进入当前作用域开始计时；链式配置必须以 `.submit()` 结束，否则编译失败；离开作用域时自动结束并写出
 - 面向“这段代码花了多久”
 
 参数：

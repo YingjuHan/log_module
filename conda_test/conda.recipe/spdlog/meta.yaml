@@ -1,0 +1,52 @@
+{% set name = "spdlog" %}
+{% set version = "1.11.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/gabime/spdlog/archive/refs/tags/v1.11.0.tar.gz
+  sha256: ca5cae8d6cac15dae0ec63b21d6ad3530070650f68076f3a4a862ca293a858bb
+
+requirements:
+  host:
+    - fmt ==9.1.0
+  run:
+    - fmt ==9.1.0
+
+build:
+  number: 0
+  ignore_run_exports:
+    - fmt
+
+test:
+  requires:
+    - {{ compiler('cxx') }}
+    - cmake
+    - ninja
+  files:
+    - test/CMakeLists.txt
+    - test/main.cpp
+  commands:
+    - test -f "${PREFIX}/include/spdlog/spdlog.h"  # [unix]
+    - test -f "${PREFIX}/lib/cmake/spdlog/spdlogConfig.cmake"  # [unix]
+    - cmake -S test -B cmake-test -G Ninja -DCMAKE_PREFIX_PATH="${PREFIX}"  # [unix]
+    - cmake --build cmake-test --parallel  # [unix]
+    - ./cmake-test/spdlog_recipe_consumer  # [unix]
+    - if not exist "%LIBRARY_PREFIX%\include\spdlog\spdlog.h" exit 1  # [win]
+    - if not exist "%LIBRARY_PREFIX%\lib\cmake\spdlog\spdlogConfig.cmake" exit 1  # [win]
+    - cmake -S test -B cmake-test -G Ninja -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"  # [win]
+    - cmake --build cmake-test --parallel  # [win]
+    - cmake-test\spdlog_recipe_consumer.exe  # [win]
+
+about:
+  home: https://github.com/gabime/spdlog
+  summary: Fast C++ logging library
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+
+extra:
+  recipe-maintainers:
+    - cae_log_module

@@ -7,7 +7,7 @@ config=Debug
 build_dir=
 install_prefix=
 generator=
-spdlog_include_dir=${CAE_LOGGER_SPDLOG_INCLUDE_DIR:-}
+prefix_path=${CAE_LOGGER_PREFIX_PATH:-}
 clean=0
 dry_run=0
 
@@ -20,7 +20,7 @@ Options:
   --build-dir <dir>              Build directory (default: build/<config>)
   --install-prefix <dir>         Install prefix (default: install/<config>)
   --generator <name>             CMake generator, for example "MinGW Makefiles"
-  --spdlog-include-dir <dir>     Directory containing spdlog headers (or set CAE_LOGGER_SPDLOG_INCLUDE_DIR)
+  --prefix-path <path>           CMake dependency prefix (or set CAE_LOGGER_PREFIX_PATH)
   --clean                        Remove this project's build/install dirs first
   --dry-run                      Print commands without running them
   --help                         Show this help
@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
         --build-dir) build_dir=$2; shift 2 ;;
         --install-prefix) install_prefix=$2; shift 2 ;;
         --generator) generator=$2; shift 2 ;;
-        --spdlog-include-dir) spdlog_include_dir=$2; shift 2 ;;
+        --prefix-path) prefix_path=$2; shift 2 ;;
         --clean) clean=1; shift ;;
         --dry-run) dry_run=1; shift ;;
         --help) usage; exit 0 ;;
@@ -43,10 +43,6 @@ done
 
 [ -n "$build_dir" ] || build_dir="$script_dir/build/$config"
 [ -n "$install_prefix" ] || install_prefix="$script_dir/install/$config"
-if [ -z "$spdlog_include_dir" ]; then
-    echo "spdlog include directory is required. Pass --spdlog-include-dir or set CAE_LOGGER_SPDLOG_INCLUDE_DIR." >&2
-    exit 2
-fi
 
 abs_path() {
     case "$1" in
@@ -57,7 +53,6 @@ abs_path() {
 
 build_dir=$(abs_path "$build_dir")
 install_prefix=$(abs_path "$install_prefix")
-spdlog_include_dir=$(abs_path "$spdlog_include_dir")
 
 run() {
     printf '+'
@@ -90,13 +85,14 @@ configure_args=()
 if [ -n "$generator" ]; then
     configure_args+=("-G" "$generator")
 fi
+if [ -n "$prefix_path" ]; then
+    configure_args+=("-DCMAKE_PREFIX_PATH=$prefix_path")
+fi
 
 run cmake -E make_directory "$build_dir"
 run_in_dir "$build_dir" cmake ${configure_args[@]+"${configure_args[@]}"} \
     -DCMAKE_BUILD_TYPE="$config" \
     -DCMAKE_INSTALL_PREFIX="$install_prefix" \
-    -DCAE_LOGGER_SPDLOG_MODE=HEADER_ONLY \
-    -DCAE_LOGGER_SPDLOG_INCLUDE_DIR="$spdlog_include_dir" \
     "$script_dir"
 run cmake --build "$build_dir" --config "$config" --target cae_logger -j8
 run cmake --build "$build_dir" --config "$config" --target install

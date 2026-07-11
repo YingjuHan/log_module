@@ -1,0 +1,30 @@
+cmake_minimum_required(VERSION 3.15)
+project(boost_stacktrace_recipe_test LANGUAGES CXX)
+
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_RELEASE_LIBS ON)
+set(Boost_USE_DEBUG_LIBS OFF)
+set(Boost_NO_BOOST_CMAKE ON)
+
+if(WIN32)
+  set(_boost_stacktrace_component stacktrace_windbg)
+else()
+  set(_boost_stacktrace_component stacktrace_basic)
+endif()
+
+find_package(Boost 1.68.0 EXACT REQUIRED COMPONENTS ${_boost_stacktrace_component})
+
+set(_boost_stacktrace_target Boost::${_boost_stacktrace_component})
+add_executable(boost_stacktrace_consumer stacktrace_consumer.cpp)
+if(TARGET ${_boost_stacktrace_target})
+  target_link_libraries(boost_stacktrace_consumer PRIVATE ${_boost_stacktrace_target})
+else()
+  string(TOUPPER "${_boost_stacktrace_component}" _boost_stacktrace_component_upper)
+  set(_boost_stacktrace_library_variable "Boost_${_boost_stacktrace_component_upper}_LIBRARY")
+  if(NOT DEFINED ${_boost_stacktrace_library_variable}
+     OR "${${_boost_stacktrace_library_variable}}" STREQUAL "")
+    message(FATAL_ERROR "FindBoost did not provide ${_boost_stacktrace_library_variable}")
+  endif()
+  target_include_directories(boost_stacktrace_consumer PRIVATE ${Boost_INCLUDE_DIRS})
+  target_link_libraries(boost_stacktrace_consumer PRIVATE "${${_boost_stacktrace_library_variable}}")
+endif()

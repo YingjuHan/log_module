@@ -1,5 +1,7 @@
 #include "cae_printer.h"
 
+#include <spdlog/fmt/fmt.h>
+
 namespace cae
 {
 namespace detail
@@ -57,17 +59,23 @@ namespace detail
     //=======================================================================
     std::string Printer::format_log_message(const LogRecord& theRecord)
     {
+        std::string aMessage = theRecord.message;
+        if (theRecord.event_kind == EventKind::Span)
+        {
+            aMessage += fmt::format(" [duration_us={}]", theRecord.duration_us);
+        }
+
         if (!theRecord.call_chain.empty())
         {
-            return theRecord.message + "\nCall chain:" + format_call_chain_block(theRecord.call_chain);
+            return aMessage + "\nCall chain:" + format_call_chain_block(theRecord.call_chain);
         }
 
         if (theRecord.call_chain_status == "boost_stacktrace_unavailable")
         {
-            return theRecord.message + "\nCall chain: unavailable (boost::stacktrace not available).";
+            return aMessage + "\nCall chain: unavailable (boost::stacktrace not available).";
         }
 
-        return theRecord.message;
+        return aMessage;
     }
 
 } // namespace detail

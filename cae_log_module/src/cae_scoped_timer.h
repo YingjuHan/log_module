@@ -9,6 +9,12 @@
 
 #include <spdlog/fmt/fmt.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+    #define CAE_LOGGER_SUBMIT_REQUIRED __attribute__((warn_unused_result))
+#else
+    #define CAE_LOGGER_SUBMIT_REQUIRED
+#endif
+
 namespace cae
 {
 
@@ -17,8 +23,9 @@ struct ScopedTimerState;
 /**
  * \brief Emits a timed span event for a scoped operation.
  *
- * `ScopedTimer` is intended for local code-block timing. Call `submit()` after
- * the chained configuration to write the span when the scope exits. Use
+ * `ScopedTimer` is intended for local code-block timing. The chained
+ * configuration must end with `submit()` to write the span when the scope
+ * exits. Use
  * `TaskScope` for business workflow spans that need stable stage/action
  * semantics.
  */
@@ -41,21 +48,24 @@ class CAE_LOGGER_EXPORT ScopedTimer
     ScopedTimer(const ScopedTimer&) = delete;
     ScopedTimer& operator=(const ScopedTimer&) = delete;
 
-    //! Sets the module/component name for this scoped timer.
-    ScopedTimer& module(const char* theModule);
+    //! Starts a scope configuration chain that must end with `submit()`.
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& require_submit();
 
     //! Sets the module/component name for this scoped timer.
-    ScopedTimer& module(const std::string& theModule);
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& module(const char* theModule);
+
+    //! Sets the module/component name for this scoped timer.
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& module(const std::string& theModule);
 
     //! Sets the human-readable message without formatting.
-    ScopedTimer& message(const char* theMessage);
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& message(const char* theMessage);
 
     //! Sets the human-readable message without formatting.
-    ScopedTimer& message(std::string theMessage);
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& message(std::string theMessage);
 
     //! Formats and stores the human-readable scoped timer message.
     template<typename... Args>
-    ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)
+    CAE_LOGGER_SUBMIT_REQUIRED ScopedTimer& message(fmt::format_string<Args...> theFormat, Args&&... theArgs)
     {
         return message(fmt::format(theFormat, std::forward<Args>(theArgs)...));
     }
@@ -74,3 +84,5 @@ class CAE_LOGGER_EXPORT ScopedTimer
 };
 
 } // namespace cae
+
+#undef CAE_LOGGER_SUBMIT_REQUIRED

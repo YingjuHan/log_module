@@ -235,7 +235,7 @@ call_chain_skip=0
 | `CAE_LOG(level)`                                            | `level`                                  | 必须是 `Trace/Debug/Info/Warn/Error/Critical` 这样的枚举标识符片段，不能传运行时变量。 |
 | `CAE_LOG(level).module(module)`                             | `level`、`module`                         | 返回链式 builder；消息通过 `.message(...).submit()` 写出。        |
 | `CAE_LOG_*_DUR(module, duration_us)`                   | `module`、`duration_us` | 返回带顶层 `duration_us` 的链式 builder，消息通过 `.message(...).submit()` 写出。 |
-| `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；通过 `.module(...).message(...).submit()` 链式配置，退出作用域时写日志。 |
+| `CAE_LOG_SCOPE(level)`                                      | `level`                                  | 创建 RAII span；链式配置必须以 `.submit()` 结束，否则编译失败；退出作用域时写日志。 |
 | `CAE_SCOPE_TASK(level, module, stage, ...)`                 | `level`、`module`、`stage`                 | action 和 trace_id 选填。                                           |
 | `cae::TaskScope(module, stage, level, ...)`                 | `module`、`stage`                         | action 和 trace_id 选填。                                           |
 | `cae::ScopedTimer(module, level, message)`                  | `module`、`level`、`message`               | 创建简易计时 scope；必须显式调用 `timer.submit()` 后才会在退出作用域时写出。          |
@@ -642,7 +642,7 @@ CAE_LOG_CRITICAL_DUR("System", shutdown_us)
 
 ### 8.5 `CAE_LOG_SCOPE(level)`
 
-用途：在当前 C++ 作用域创建 RAII 计时器，调用 `.submit()` 后在作用域退出时写入 span。
+用途：在当前 C++ 作用域创建 RAII 计时器。链式配置必须调用 `.submit()`，否则编译失败；已提交的 scope 在作用域退出时写入 span。
 
 ```cpp
 void run_mesher() {
@@ -680,7 +680,8 @@ CAE_LOG_SCOPE(Critical).module(module).message(...).submit()
 
 限制：
 
-* 只有调用 `.submit()` 后，退出作用域才写日志。
+* 链式配置必须调用 `.submit()`，遗漏时编译失败。
+* span 的文本日志会追加 `[duration_us=N]`，JSONL 同时保留数值型 `duration_us` 字段。
 * stage 从 module 派生。
 * action 固定为 `timed_scope`。
 * message 由调用方提供。

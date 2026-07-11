@@ -1,0 +1,50 @@
+{% set name = "cae_logger" %}
+{% set version = "1.0.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: build.sh  # [unix]
+  script: bld.bat  # [win]
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - cmake
+    - ninja
+  host:
+    - fmt ==9.1.0
+    - spdlog ==1.11.0
+    - boost ==1.68.0
+  run:
+    - fmt ==9.1.0
+    - spdlog ==1.11.0
+    - boost ==1.68.0
+
+test:
+  files:
+    - test/CMakeLists.txt
+    - test/main.cpp
+  requires:
+    - {{ compiler('cxx') }}
+    - cmake
+    - ninja
+  commands:
+    - cmake -S test -B test-build -G Ninja -DCMAKE_PREFIX_PATH="${PREFIX}"  # [unix]
+    - cmake --build test-build --parallel  # [unix]
+    - ./test-build/cae_logger_conda_consumer  # [unix]
+    - cmake -S test -B test-build -G Ninja -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"  # [win]
+    - cmake --build test-build --parallel  # [win]
+    - set "PATH=%LIBRARY_BIN%;%PATH%"  # [win]
+    - test-build\cae_logger_conda_consumer.exe  # [win]
+
+about:
+  home: https://github.com/YingjuHan/log_module
+  license: LicenseRef-Proprietary
+  summary: Structured C++ logging library for CAE applications.

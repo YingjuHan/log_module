@@ -1,15 +1,37 @@
 @PACKAGE_INIT@
 
-set(_CAE_LOGGER_SPDLOG_TARGET "@CAE_SPDLOG_TARGET@")
+include(CMakeFindDependencyMacro)
 
-if(_CAE_LOGGER_SPDLOG_TARGET AND NOT TARGET "${_CAE_LOGGER_SPDLOG_TARGET}")
-    find_package(spdlog REQUIRED CONFIG)
+find_dependency(fmt 9.1.0 CONFIG)
+find_dependency(spdlog 1.11.0 CONFIG)
+
+if(NOT TARGET fmt::fmt-header-only)
+    message(FATAL_ERROR "cae_logger requires the external header-only target fmt::fmt-header-only.")
 endif()
 
-if(_CAE_LOGGER_SPDLOG_TARGET AND NOT TARGET "${_CAE_LOGGER_SPDLOG_TARGET}")
-    message(FATAL_ERROR "cae_logger requires ${_CAE_LOGGER_SPDLOG_TARGET}, but the target was not found.")
+if(NOT TARGET spdlog::spdlog_header_only)
+    message(FATAL_ERROR "cae_logger requires the external header-only target spdlog::spdlog_header_only.")
 endif()
 
-unset(_CAE_LOGGER_SPDLOG_TARGET)
+get_target_property(_CAE_LOGGER_SPDLOG_COMPILE_DEFINITIONS
+    spdlog::spdlog_header_only INTERFACE_COMPILE_DEFINITIONS)
+list(FIND _CAE_LOGGER_SPDLOG_COMPILE_DEFINITIONS
+    "SPDLOG_FMT_EXTERNAL" _CAE_LOGGER_SPDLOG_FMT_EXTERNAL_INDEX)
+if(_CAE_LOGGER_SPDLOG_FMT_EXTERNAL_INDEX EQUAL -1)
+    message(FATAL_ERROR "spdlog::spdlog_header_only must enable SPDLOG_FMT_EXTERNAL.")
+endif()
+
+get_target_property(_CAE_LOGGER_SPDLOG_LINK_LIBRARIES
+    spdlog::spdlog_header_only INTERFACE_LINK_LIBRARIES)
+list(FIND _CAE_LOGGER_SPDLOG_LINK_LIBRARIES
+    "fmt::fmt-header-only" _CAE_LOGGER_SPDLOG_FMT_TARGET_INDEX)
+if(_CAE_LOGGER_SPDLOG_FMT_TARGET_INDEX EQUAL -1)
+    message(FATAL_ERROR "spdlog::spdlog_header_only must link fmt::fmt-header-only.")
+endif()
+
+unset(_CAE_LOGGER_SPDLOG_COMPILE_DEFINITIONS)
+unset(_CAE_LOGGER_SPDLOG_FMT_EXTERNAL_INDEX)
+unset(_CAE_LOGGER_SPDLOG_LINK_LIBRARIES)
+unset(_CAE_LOGGER_SPDLOG_FMT_TARGET_INDEX)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cae_loggerTargets.cmake")

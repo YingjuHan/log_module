@@ -133,37 +133,16 @@ void tiny_work() {
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
 }
 
-void test_scope_requires_submit_and_keeps_elapsed_time(const std::string& base_dir) {
+void test_submitted_scope_keeps_elapsed_time(const std::string& base_dir) {
     const std::string log_dir = join_path(base_dir, "scope_submit");
     make_directory(log_dir);
 
-    const std::string skipped_message = "scope_without_submit_should_not_emit";
     const std::string submitted_message = "scope_with_submit_records_elapsed_time";
-    const std::string unsubmitted_child_message = "scope_without_submit_child_has_no_parent";
     const std::string submitted_child_message = "scope_with_submit_child_inherits_parent";
     const std::string text_log = text_log_path(log_dir, "ScopeSubmit");
     const std::string analysis_log = analysis_log_path(log_dir);
 
     cae::init(make_options(log_dir));
-    {
-        CAE_LOG_SCOPE(Info)
-            .module("ScopeSubmit")
-            .message(skipped_message);
-        tiny_work();
-        CAE_LOG(Info)
-            .module("ScopeSubmit")
-            .message(unsubmitted_child_message)
-            .submit();
-    }
-    require_true(!file_contains(text_log, skipped_message),
-                 "CAE_LOG_SCOPE without submit should not write when its local block exits");
-    const std::string unsubmitted_child_line =
-        line_containing(analysis_log, unsubmitted_child_message);
-    require_true(!unsubmitted_child_line.empty(),
-                 "event inside an unsubmitted scope should be present in analysis log");
-    require_true(unsubmitted_child_line.find("\"parent_span_id\":null") != std::string::npos,
-                 "event inside an unsubmitted scope should not have a parent span");
-
     std::string submitted_child_parent_span_id;
     std::string submitted_child_trace_id;
     {
@@ -193,9 +172,9 @@ void test_scope_requires_submit_and_keeps_elapsed_time(const std::string& base_d
 
     require_true(file_contains(text_log, submitted_message),
                  "CAE_LOG_SCOPE with submit should write a text record when its local block exits");
-
-    require_true(!file_contains(analysis_log, skipped_message),
-                 "CAE_LOG_SCOPE without submit should not write an analysis record");
+    const std::string submitted_text_line = line_containing(text_log, submitted_message);
+    require_true(submitted_text_line.find("duration_us=") != std::string::npos,
+                 "submitted scope text record should include duration_us");
 
     const std::string submitted_line = line_containing(analysis_log, submitted_message);
     require_true(!submitted_line.empty(), "submitted scope should be present in analysis log");
@@ -219,7 +198,7 @@ int main() {
     make_directory(base_dir);
 
     try {
-        test_scope_requires_submit_and_keeps_elapsed_time(base_dir);
+        test_submitted_scope_keeps_elapsed_time(base_dir);
     } catch (const std::exception& error) {
         cae::shutdown();
         std::cerr << error.what() << std::endl;

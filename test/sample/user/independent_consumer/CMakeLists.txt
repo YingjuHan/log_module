@@ -27,19 +27,3 @@ add_custom_command(TARGET independent_consumer POST_BUILD
         "$<TARGET_FILE_DIR:independent_consumer>"
     COMMENT "Copying cae_logger runtime to independent_consumer directory"
 )
-
-if(WIN32 AND TARGET spdlog::spdlog)
-    get_target_property(SPDLOG_DLL spdlog::spdlog IMPORTED_LOCATION_DEBUG)
-    if(NOT SPDLOG_DLL)
-        get_target_property(SPDLOG_DLL spdlog::spdlog IMPORTED_LOCATION_RELEASE)
-    endif()
-
-    if(SPDLOG_DLL)
-        add_custom_command(TARGET independent_consumer POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${SPDLOG_DLL}"
-                "$<TARGET_FILE_DIR:independent_consumer>"
-            COMMENT "Copying spdlog runtime to independent_consumer directory"
-        )
-    endif()
-endif()

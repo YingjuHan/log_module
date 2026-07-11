@@ -1,0 +1,51 @@
+{% set name = "boost" %}
+{% set version = "1.68.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://archives.boost.io/release/1.68.0/source/boost_1_68_0.tar.gz
+  sha256: da3411ea45622579d419bfda66f45cd0f8c32a181d84adfa936f5688388995cf
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+
+build:
+  number: 0
+
+test:
+  requires:
+    - cmake
+    - ninja
+    - {{ compiler('cxx') }}
+  files:
+    - test/CMakeLists.txt
+    - test/stacktrace_consumer.cpp
+  commands:
+    - test -f "${PREFIX}/include/boost/version.hpp"  # [unix]
+    - test -f "${PREFIX}/include/boost/stacktrace.hpp"  # [unix]
+    - test -n "$(find "${PREFIX}/lib" -maxdepth 1 -type f -name 'libboost_stacktrace*' -print -quit)"  # [unix]
+    - cmake -S test -B cmake-test -G Ninja -DBOOST_ROOT="${PREFIX}" -DCMAKE_PREFIX_PATH="${PREFIX}"  # [unix]
+    - cmake --build cmake-test --config Release  # [unix]
+    - ./cmake-test/boost_stacktrace_consumer  # [unix]
+    - if not exist "%LIBRARY_PREFIX%\include\boost\version.hpp" exit 1  # [win]
+    - if not exist "%LIBRARY_PREFIX%\include\boost\stacktrace.hpp" exit 1  # [win]
+    - if not exist "%LIBRARY_PREFIX%\lib\boost_stacktrace*.lib" exit 1  # [win]
+    - cmake -S test -B cmake-test -G Ninja -DBOOST_ROOT="%LIBRARY_PREFIX%" -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"  # [win]
+    - cmake --build cmake-test --config Release  # [win]
+    - cmake-test\boost_stacktrace_consumer.exe  # [win]
+
+about:
+  home: https://www.boost.org/
+  summary: Free peer-reviewed portable C++ source libraries
+  license: BSL-1.0
+  license_family: BSD
+  license_file: LICENSE_1_0.txt
+
+extra:
+  recipe-maintainers:
+    - cae_log_module

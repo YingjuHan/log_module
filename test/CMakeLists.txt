@@ -59,21 +59,6 @@ function(setup_sample_target target_name)
         COMMENT "Copying CAE logger config to ${target_name} directory"
     )
 
-    if(WIN32 AND TARGET spdlog::spdlog)
-        get_target_property(SPDLOG_DLL spdlog::spdlog IMPORTED_LOCATION_DEBUG)
-        if(NOT SPDLOG_DLL)
-            get_target_property(SPDLOG_DLL spdlog::spdlog IMPORTED_LOCATION_RELEASE)
-        endif()
-
-        if(SPDLOG_DLL)
-            add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${SPDLOG_DLL}"
-                    "$<TARGET_FILE_DIR:${target_name}>"
-                COMMENT "Copying spdlog runtime to ${target_name} directory"
-            )
-        endif()
-    endif()
 endfunction()
 
 add_executable(app_main
@@ -104,6 +89,10 @@ add_executable(runtime_scope_submit
     sample/runtime_scope_submit.cpp
 )
 
+add_library(scope_submit_required_compile_contract OBJECT EXCLUDE_FROM_ALL
+    sample/compile_scope_submit_required.cpp
+)
+
 setup_sample_target(app_main)
 setup_sample_target(cae_postprocess_demo)
 setup_sample_target(user_document_demo)
@@ -111,6 +100,7 @@ setup_sample_target(qt_emit_macro_compat)
 setup_sample_target(runtime_config_hot_reload)
 setup_sample_target(runtime_file_flush)
 setup_sample_target(runtime_scope_submit)
+target_link_libraries(scope_submit_required_compile_contract cae_logger::cae_logger)
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
 
@@ -149,4 +139,10 @@ if(BUILD_TESTING)
     set_tests_properties(runtime_scope_submit_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
+
+    add_test(
+        NAME scope_submit_required_compile_contract
+        COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --target scope_submit_required_compile_contract
+    )
+    set_tests_properties(scope_submit_required_compile_contract PROPERTIES WILL_FAIL TRUE)
 endif()

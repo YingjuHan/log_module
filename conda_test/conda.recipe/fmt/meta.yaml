@@ -1,0 +1,44 @@
+{% set name = "fmt" %}
+{% set version = "9.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/fmtlib/fmt/archive/refs/tags/9.1.0.tar.gz
+  sha256: 5dea48d1fcddc3ec571ce2058e13910a0d4a6bab4cc09a809d8b1dd1c88ae6f2
+
+build:
+  number: 0
+
+test:
+  requires:
+    - {{ compiler('cxx') }}
+    - cmake
+    - ninja
+  files:
+    - test/CMakeLists.txt
+    - test/main.cpp
+  commands:
+    - test -f "${PREFIX}/include/fmt/format.h"  # [unix]
+    - test -f "${PREFIX}/lib/cmake/fmt/fmtConfig.cmake"  # [unix]
+    - cmake -S test -B cmake-test -G Ninja -DCMAKE_PREFIX_PATH="${PREFIX}"  # [unix]
+    - cmake --build cmake-test --parallel  # [unix]
+    - ./cmake-test/fmt_recipe_consumer  # [unix]
+    - if not exist "%LIBRARY_PREFIX%\include\fmt\format.h" exit 1  # [win]
+    - if not exist "%LIBRARY_PREFIX%\lib\cmake\fmt\fmtConfig.cmake" exit 1  # [win]
+    - cmake -S test -B cmake-test -G Ninja -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"  # [win]
+    - cmake --build cmake-test --parallel  # [win]
+    - cmake-test\fmt_recipe_consumer.exe  # [win]
+
+about:
+  home: https://github.com/fmtlib/fmt
+  summary: A modern formatting library for C++
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE.rst
+
+extra:
+  recipe-maintainers:
+    - cae_log_module

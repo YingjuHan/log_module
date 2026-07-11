@@ -90,6 +90,15 @@ ScopedTimer::ScopedTimer(std::string theModule, Level theLevel, std::string theM
 }
 
 //=======================================================================
+// function : ScopedTimer::require_submit
+// purpose  :
+//=======================================================================
+ScopedTimer& ScopedTimer::require_submit()
+{
+    return *this;
+}
+
+//=======================================================================
 // function : ScopedTimer::module
 // purpose  :
 //=======================================================================
